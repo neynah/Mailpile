@@ -25,14 +25,24 @@ import email_capnp
 
 _plugins = PluginManager(builtin=__file__)
 
+# TODO: make this less hacky. Currently working around thread problems
+client = None
+email_cap = None
 
-# TODO: move capnp stuff out of global/import scope
-class Fd(object):
-    def __init__(self, fd):
-        self.fileno = lambda: fd
+capnp.remove_event_loop()
+capnp.create_event_loop(threaded=True)
 
-client = capnp.TwoPartyClient(Fd(4))
-email_cap = client.ez_restore('SessionContext').cast_as(email_capnp.EmailSendPort)
+
+def setup_email_cap():
+    class Fd(object):
+        def __init__(self, fd):
+            self.fileno = lambda: fd
+
+    global client
+    global email_cap
+
+    client = capnp.TwoPartyClient(Fd(4))
+    email_cap = client.ez_restore('SessionContext').cast_as(email_capnp.EmailSendPort)
 
 
 def SendMail(session, msg_mid, message_tuple):
@@ -54,6 +64,9 @@ def SendMail(session, msg_mid, message_tuple):
             ret = [ret]
 
         return ret
+
+    if email_cap is None:
+        setup_email_cap()
 
     raw_email = message_tuple[2]
     req = email_cap.send_request()
