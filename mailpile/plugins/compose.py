@@ -3,6 +3,7 @@ import os
 import os.path
 import re
 import traceback
+import socket
 from gettext import gettext as _
 
 from mailpile.plugins import PluginManager
@@ -34,14 +35,13 @@ capnp.create_event_loop(threaded=True)
 
 
 def setup_email_cap():
-    class Fd(object):
-        def __init__(self, fd):
-            self.fileno = lambda: fd
-
     global client
     global email_cap
 
-    client = capnp.TwoPartyClient(Fd(4))
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect("/tmp/socket-api")
+
+    client = capnp.TwoPartyClient(s)
     email_cap = client.ez_restore('SessionContext').cast_as(email_capnp.EmailSendPort)
 
 
