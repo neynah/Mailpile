@@ -39,10 +39,10 @@ def setup_email_cap():
     global email_cap
 
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.connect("/tmp/socket-api")
+    s.connect("/tmp/sandstorm-api")
 
     client = capnp.TwoPartyClient(s)
-    email_cap = client.ez_restore('SessionContext').cast_as(email_capnp.EmailSendPort)
+    email_cap = client.ez_restore('HackSessionContext').cast_as(email_capnp.EmailSendPort)
 
 
 def SendMail(session, msg_mid, message_tuple):
