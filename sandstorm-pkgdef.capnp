@@ -3,7 +3,7 @@
 using Spk = import "/sandstorm/package.capnp";
 
 const pkgdef :Spk.PackageDefinition = (
-  id = "dhuy91jv0ap1wf5qcnjncuy53pt2ajcz4v5mh0sr14deu3k69kvh",
+  id = "0s6hcw325yjs22c03hh09uyr0wxy8r09qet34637kep6tncfh9uh",
 
   manifest = (
     appVersion = 0,

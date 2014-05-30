@@ -90,7 +90,6 @@ mailpile/plugins/dates.py
 mailpile/plugins/eventlog.py
 mailpile/plugins/exporters.py
 mailpile/plugins/groups.py
-mailpile/plugins/hacks.py
 mailpile/plugins/html_magic.py
 mailpile/plugins/migrate.py
 mailpile/plugins/plugins.py
@@ -522,7 +521,7 @@ usr/lib/x86_64-linux-gnu/libjpeg.so.8
 usr/lib/x86_64-linux-gnu/libjpeg.so.8.4.0
 usr/lib/x86_64-linux-gnu/libssl.so.1.0.0
 usr/lib/x86_64-linux-gnu/libstdc++.so.6
-usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.19
+usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.20
 usr/lib/x86_64-linux-gnu/libtiff.so.5
 usr/lib/x86_64-linux-gnu/libtiff.so.5.2.0
 usr/lib/x86_64-linux-gnu/libxml2.so.2
@@ -537,7 +536,6 @@ usr/local/lib/libkj-async-0.5-dev.so
 usr/local/lib/libsodium.so.4
 usr/local/lib/libsodium.so.4.5.0
 usr/local/lib/python2.7/dist-packages
-usr/local/lib/python2.7/dist-packages/CapnpPygmentsLexer-0.1-py2.7.egg
 usr/local/lib/python2.7/dist-packages/capnp/__init__.py
 usr/local/lib/python2.7/dist-packages/capnp/__init__.pyc
 usr/local/lib/python2.7/dist-packages/capnp/c++.capnp
@@ -546,7 +544,7 @@ usr/local/lib/python2.7/dist-packages/capnp/lib/__init__.pyc
 usr/local/lib/python2.7/dist-packages/capnp/lib/capnp.so
 usr/local/lib/python2.7/dist-packages/capnp/version.py
 usr/local/lib/python2.7/dist-packages/capnp/version.pyc
-usr/local/lib/python2.7/dist-packages/easy-install.pth
+usr/local/lib/python2.7/dist-packages/virtualenvwrapper-4.2-nspkg.pth
 usr/share/gnupg/options.skel
 usr/share/locale/locale.alias
 usr/share/pyshared/PIL/Image.py
@@ -579,7 +577,6 @@ usr/share/pyshared/markupsafe/__init__.py
 usr/share/pyshared/markupsafe/_compat.py
 usr/share/pyshared/markupsafe/_constants.py
 usr/share/pyshared/pygtk.pth
-usr/share/pyshared/setuptools.pth
 usr/share/pyshared/spambayes/Options.py
 usr/share/pyshared/spambayes/OptionsClass.py
 usr/share/pyshared/spambayes/__init__.py
