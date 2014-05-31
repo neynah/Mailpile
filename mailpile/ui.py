@@ -168,7 +168,7 @@ class UserInteraction:
         self.log_parent = log_parent
         self.log_buffer = []
         self.log_buffering = False
-        self.log_level = self.LOG_ALL
+        self.log_level = self.LOG_ERROR
         self.log_prefix = log_prefix or self.LOG_PREFIX
         self.interactive = False
         self.time_tracking = [('Main', [])]
