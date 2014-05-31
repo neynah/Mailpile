@@ -17,9 +17,13 @@ from mailpile.urlmap import UrlMap
 from mailpile.util import *
 from mailpile.ui import *
 
+import capnp
+import email_capnp
+
 global WORD_REGEXP, STOPLIST, BORING_HEADERS, DEFAULT_PORT
 
 DEFAULT_PORT = 33411
+IS_PROFILE_SET = False
 
 
 class HttpRequestHandler(SimpleXMLRPCRequestHandler):
@@ -182,7 +186,30 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         return '%s-%s' % (ts, b64w(sha1b64('-'.join([self.server.secret,
                                                      ts]))))
 
+    def set_profile(self):
+        global IS_PROFILE_SET
+
+        if IS_PROFILE_SET:
+            return
+
+        from mailpile.commands import ConfigSet
+
+        name = self.headers.get('x-sandstorm-username', '')
+        ConfigSet(self.server.session, arg='profiles.0.name="%s"' % name).command()
+
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.connect("/tmp/sandstorm-api")
+
+        client = capnp.TwoPartyClient(s)
+        email_cap = client.ez_restore('HackSessionContext').cast_as(email_capnp.EmailSendPort)
+        address = email_cap.getAddress().wait().address
+        ConfigSet(self.server.session, arg='profiles.0.email="%s"' % address).command()
+
+        IS_PROFILE_SET = True
+
     def do_POST(self, method='POST'):
+        self.set_profile()
+
         (scheme, netloc, path, params, query, frag) = urlparse(self.path)
         if path.startswith('/::XMLRPC::/'):
             raise ValueError(_('XMLRPC has been disabled for now.'))
@@ -219,6 +246,8 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         return self.do_GET(post_data=post_data, method=method)
 
     def do_GET(self, post_data={}, suppress_body=False, method='GET'):
+        self.set_profile()
+
         (scheme, netloc, path, params, query, frag) = urlparse(self.path)
         query_data = parse_qs(query)
         opath = path = unquote(path)

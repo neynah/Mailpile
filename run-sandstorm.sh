@@ -17,8 +17,6 @@ if ! test -e mail; then
   /usr/bin/python /mp --setup
   /usr/bin/python /mp --set sys.http_host=0.0.0.0
   /usr/bin/python /mp --add /var/mail/
-  /usr/bin/python /mp --set profiles.0.email=test@example.com
-  /usr/bin/python /mp --set profiles.0.name="Testing Mailpile"
   /usr/bin/python /mp --set prefs.rescan_interval=60
 fi
 
