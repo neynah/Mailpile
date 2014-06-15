@@ -23,7 +23,7 @@ from mailpile.vcard import AddressInfo
 from mailpile.plugins.search import Search, SearchResults, View
 
 import capnp
-import email_capnp
+import hack_session_capnp
 
 _plugins = PluginManager(builtin=__file__)
 
@@ -43,7 +43,7 @@ def setup_email_cap():
     s.connect("/tmp/sandstorm-api")
 
     client = capnp.TwoPartyClient(s)
-    email_cap = client.ez_restore('HackSessionContext').cast_as(email_capnp.EmailSendPort)
+    email_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
 
 
 def SendMail(session, msg_mid, message_tuple):

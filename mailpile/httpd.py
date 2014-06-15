@@ -18,7 +18,7 @@ from mailpile.util import *
 from mailpile.ui import *
 
 import capnp
-import email_capnp
+import hack_session_capnp
 
 global WORD_REGEXP, STOPLIST, BORING_HEADERS, DEFAULT_PORT
 
@@ -192,20 +192,25 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         if IS_PROFILE_SET:
             return
 
-        from mailpile.commands import ConfigSet
+        IS_PROFILE_SET = True
 
-        name = self.headers.get('x-sandstorm-username', '')
-        ConfigSet(self.server.session, arg='profiles.0.name="%s"' % name).command()
+        from mailpile.commands import ConfigSet
 
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.connect("/tmp/sandstorm-api")
 
         client = capnp.TwoPartyClient(s)
-        email_cap = client.ez_restore('HackSessionContext').cast_as(email_capnp.EmailSendPort)
-        address = email_cap.getAddress().wait().address
-        ConfigSet(self.server.session, arg='profiles.0.email="%s"' % address).command()
+        session_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
+        address = session_cap.getUserAddress().wait()
 
-        IS_PROFILE_SET = True
+        ConfigSet(self.server.session, arg='profiles.0.name=%s' % address.name).command()
+        ConfigSet(self.server.session, arg='profiles.0.email=%s' % address.address).command()
+
+        name = self.headers.get('x-sandstorm-username', '')
+        public_id = session_cap.getPublicId().wait()
+
+        ConfigSet(self.server.session, arg='profiles.1.name=%s' % name).command()
+        ConfigSet(self.server.session, arg='profiles.1.email=%s' % (public_id.publicId + '@' + public_id.hostname)).command()
 
     def do_POST(self, method='POST'):
         self.set_profile()
