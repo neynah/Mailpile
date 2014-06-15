@@ -17,7 +17,8 @@ if ! test -e mail; then
   /usr/bin/python /mp --setup
   /usr/bin/python /mp --set sys.http_host=0.0.0.0
   /usr/bin/python /mp --add /var/mail/
-  /usr/bin/python /mp --set prefs.rescan_interval=60
+  /usr/bin/python /mp --set prefs.rescan_interval=5
+  /usr/bin/python /mp --set prefs.empty_outbox_interval=5
 fi
 
 /usr/bin/python /mp --rescan all
