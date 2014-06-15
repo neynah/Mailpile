@@ -4,6 +4,7 @@ import os.path
 import re
 import traceback
 import socket
+import time
 from gettext import gettext as _
 
 from mailpile.plugins import PluginManager
@@ -74,6 +75,7 @@ def SendMail(session, msg_mid, message_tuple):
     email.to = split_address(raw_email['To'], is_list=True)
     setattr(email, 'from', split_address(raw_email['From']))  # deal with from being a reserved keyword
     email.subject = raw_email['Subject']
+    email.date = int(time.time()) * 10**9
     # TODO: add other headers
     payloads = raw_email.get_payload()
     if type(payloads) is list:
@@ -83,7 +85,7 @@ def SendMail(session, msg_mid, message_tuple):
             elif payload['Content-Type'].startswith('text/html'):
                 email.html = payload.get_payload()
             else:
-                pass  # TODO: add as attachments
+                pass  # TODO: blocked on waiting for Mailpile UI to add outgoing attachment support
     else:
         email.text = payloads.get_payload()
 
