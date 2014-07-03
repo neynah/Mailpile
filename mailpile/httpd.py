@@ -216,6 +216,7 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         profiles[1]['email'] = public_id.publicId + '@' + public_id.hostname
         config.profiles = profiles
         migrate_profiles(self.server.session)
+        config.profiles = profiles  # Do it again because migrate removes it
         self.server.session.config.prefs.default_email = address.address.lower()
 
 
