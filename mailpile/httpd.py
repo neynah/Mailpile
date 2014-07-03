@@ -195,6 +195,8 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         IS_PROFILE_SET = True
 
         from mailpile.commands import ConfigSet
+        config = self.server.session.config
+        profiles = [{}, {}]
 
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.connect("/tmp/sandstorm-api")
@@ -203,14 +205,15 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         session_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
         address = session_cap.getUserAddress().wait()
 
-        ConfigSet(self.server.session, arg='profiles.0.name=%s' % address.name).command()
-        ConfigSet(self.server.session, arg='profiles.0.email=%s' % address.address).command()
+        profiles[0]['name'] = address.name
+        profiles[0]['email'] = address.address
 
         name = self.headers.get('x-sandstorm-username', '')
         public_id = session_cap.getPublicId().wait()
 
-        ConfigSet(self.server.session, arg='profiles.1.name=%s' % name).command()
-        ConfigSet(self.server.session, arg='profiles.1.email=%s' % (public_id.publicId + '@' + public_id.hostname)).command()
+        profiles[1]['name'] = name
+        profiles[1]['email'] = public_id.publicId + '@' + public_id.hostname
+        config.profiles = profiles
 
     def do_POST(self, method='POST'):
         self.set_profile()
