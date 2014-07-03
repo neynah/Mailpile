@@ -46,7 +46,7 @@ def setup_email_cap():
     email_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
 
 
-def SendMail(session, msg_mid, message_tuple):
+def SendMail(session, msg_mid, message_list):
     def split_address(raw_address, is_list=False):
         if not isinstance(raw_address, basestring):
             return [split_address(x) for x in raw_address]
@@ -66,30 +66,33 @@ def SendMail(session, msg_mid, message_tuple):
 
         return ret
 
-    if email_cap is None:
-        setup_email_cap()
+    try:
+        if email_cap is None:
+            setup_email_cap()
 
-    raw_email = message_tuple[2]
-    req = email_cap.send_request()
-    email = req.email
-    email.to = split_address(raw_email['To'], is_list=True)
-    setattr(email, 'from', split_address(raw_email['From']))  # deal with from being a reserved keyword
-    email.subject = raw_email['Subject']
-    email.date = int(time.time()) * 10**9
-    # TODO: add other headers
-    payloads = raw_email.get_payload()
-    if type(payloads) is list:
-        for payload in payloads:
-            if payload['Content-Type'].startswith('text/plain'):
-                email.text = payload.get_payload()
-            elif payload['Content-Type'].startswith('text/html'):
-                email.html = payload.get_payload()
-            else:
-                pass  # TODO: blocked on waiting for Mailpile UI to add outgoing attachment support
-    else:
-        email.text = payloads.get_payload()
+        raw_email = message_list[0][2]
+        req = email_cap.send_request()
+        email = req.email
+        email.to = split_address(raw_email['To'], is_list=True)
+        setattr(email, 'from', split_address(raw_email['From']))  # deal with from being a reserved keyword
+        email.subject = raw_email['Subject']
+        email.date = int(time.time()) * 10**9
+        # TODO: add other headers
+        payloads = raw_email.get_payload()
+        if type(payloads) is list:
+            for payload in payloads:
+                if payload['Content-Type'].startswith('text/plain'):
+                    email.text = payload.get_payload()
+                elif payload['Content-Type'].startswith('text/html'):
+                    email.html = payload.get_payload()
+                else:
+                    pass  # TODO: blocked on waiting for Mailpile UI to add outgoing attachment support
+        else:
+            email.text = payloads.get_payload()
 
-    req.send().wait()
+        req.send().wait()
+    except:
+        traceback.print_exc()
 
 
 class EditableSearchResults(SearchResults):
