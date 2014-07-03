@@ -195,6 +195,7 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         IS_PROFILE_SET = True
 
         from mailpile.commands import ConfigSet
+        from mailpile.plugins.migrate import migrate_profiles
         config = self.server.session.config
         profiles = [{}, {}]
 
@@ -214,6 +215,9 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         profiles[1]['name'] = name
         profiles[1]['email'] = public_id.publicId + '@' + public_id.hostname
         config.profiles = profiles
+        migrate_profiles(self.server.session)
+        self.server.session.config.prefs.default_email = address.address.lower()
+
 
     def do_POST(self, method='POST'):
         self.set_profile()
