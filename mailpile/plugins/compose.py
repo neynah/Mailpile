@@ -73,12 +73,28 @@ def SendMail(session, msg_mid, message_list):
         raw_email = message_list[0][2]
         req = email_cap.send_request()
         email = req.email
-        email.to = split_address(raw_email['To'], is_list=True)
+        email.messageId = msg_mid
         setattr(email, 'from', split_address(raw_email['From']))  # deal with from being a reserved keyword
+
+        if 'To' in raw_email:
+            email.to = split_address(raw_email['To'], is_list=True)
+        if 'Cc' in raw_email:
+            email.cc = split_address(raw_email['Cc'], is_list=True)
+        if 'Bcc' in raw_email:
+            email.bcc = split_address(raw_email['Bcc'], is_list=True)
+        if 'References' in raw_email:
+            email.bcc = raw_email['References']
+        if 'Reply-To' in raw_email:
+            email.replyTo = raw_email['Reply-To']
+        if 'In-Reply-To' in raw_email:
+            email.inReplyTo = raw_email['In-Reply-To']
+
         email.subject = raw_email['Subject']
         email.date = int(time.time()) * 10**9
-        # TODO: add other headers
+
         payloads = raw_email.get_payload()
+
+        attachments = []
         if type(payloads) is list:
             for payload in payloads:
                 if payload['Content-Type'].startswith('text/plain'):
@@ -86,7 +102,13 @@ def SendMail(session, msg_mid, message_list):
                 elif payload['Content-Type'].startswith('text/html'):
                     email.html = payload.get_payload()
                 else:
-                    pass  # TODO: blocked on waiting for Mailpile UI to add outgoing attachment support
+                    attachment = {
+                        'contentType': attachment.get('Content-Type', ''),
+                        'contentDisposition': attachment.get('Content-Disposition', ''),
+                        'contentId': attachment.get('Content-Id', ''),
+                        'content': payload.get_payload()
+                    }
+            email.attachments = attachments
         else:
             email.text = payloads.get_payload()
 
