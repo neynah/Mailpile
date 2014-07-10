@@ -206,14 +206,17 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         session_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
         address = session_cap.getUserAddress().wait()
 
-        profiles[0]['name'] = address.name
-        profiles[0]['email'] = address.address
+        index = 0
+        if len(address.address) > 0:
+            profiles[index]['name'] = address.name
+            profiles[index]['email'] = address.address
+            index += 1
 
         name = self.headers.get('x-sandstorm-username', '')
         public_id = session_cap.getPublicId().wait()
 
-        profiles[1]['name'] = name
-        profiles[1]['email'] = public_id.publicId + '@' + public_id.hostname
+        profiles[index]['name'] = name
+        profiles[index]['email'] = public_id.publicId + '@' + public_id.hostname
         config.profiles = profiles
         migrate_profiles(self.server.session)
         config.profiles = profiles  # Do it again because migrate removes it
