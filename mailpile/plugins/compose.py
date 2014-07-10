@@ -115,6 +115,7 @@ def SendMail(session, msg_mid, message_list):
         req.send().wait()
     except:
         traceback.print_exc()
+        raise
 
 
 class EditableSearchResults(SearchResults):
