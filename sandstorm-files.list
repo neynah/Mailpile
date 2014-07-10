@@ -184,6 +184,7 @@ plugins/maildeck/manifest.json
 plugins/social-feed/manifest.json
 run-sandstorm.sh
 sandstorm-http-bridge
+sandstorm-http-bridge-config
 sandstorm-manifest
 scripts/mailpile
 static/default/css/default.css

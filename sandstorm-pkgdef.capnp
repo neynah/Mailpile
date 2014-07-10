@@ -6,7 +6,7 @@ const pkgdef :Spk.PackageDefinition = (
   id = "0s6hcw325yjs22c03hh09uyr0wxy8r09qet34637kep6tncfh9uh",
 
   manifest = (
-    appVersion = 0,
+    appVersion = 1,
 
     actions = [
       ( title = (defaultText = "New Mailpile Mailbox"),
