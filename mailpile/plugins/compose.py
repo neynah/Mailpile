@@ -73,7 +73,6 @@ def SendMail(session, msg_mid, message_list):
         raw_email = message_list[0][2]
         req = email_cap.send_request()
         email = req.email
-        email.messageId = msg_mid
         setattr(email, 'from', split_address(raw_email['From']))  # deal with from being a reserved keyword
 
         if 'To' in raw_email:
@@ -82,6 +81,8 @@ def SendMail(session, msg_mid, message_list):
             email.cc = split_address(raw_email['Cc'], is_list=True)
         if 'Bcc' in raw_email:
             email.bcc = split_address(raw_email['Bcc'], is_list=True)
+        if 'Message-Id' in raw_email:
+            email.messageId = raw_email['Message-Id']
         if 'References' in raw_email:
             email.bcc = raw_email['References']
         if 'Reply-To' in raw_email:
