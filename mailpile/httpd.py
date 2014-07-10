@@ -339,6 +339,7 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
 
         mimetype, content = session.ui.render_response(session.config)
         self.send_full_response(content, mimetype=mimetype)
+        server_session.config.index.save_changes()
 
     def do_PUT(self):
         return self.do_POST(method='PUT')

@@ -858,6 +858,8 @@ class Sendit(CompositionCommand):
                 email.reset_caches()
                 idx.index_email(self.session, email)
 
+            self._idx().save_changes(self.session)
+
             return self._return_search_results(
                 _('Sent %d messages') % len(sent), sent, sent=sent)
         else:
