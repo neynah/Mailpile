@@ -37,7 +37,7 @@
 <!-- Profiles - Accessed via /settings/profiles -->
 <div id="settings-profiles" class="content-normal">
   <div id="profiles">
-    This grain's email address is {{ result.profiles[1].email }}. If you want to continue using your current email, then you should <a href="https://support.google.com/mail/answer/10957?hl=en">set up forwarding</a>. Emails sent from this grain will appear to be from {{ result.profiles[0].email }} by default.
+    This grain's email address is {{ (result.profiles[1] and result.profiles[1].email) or result.profiles[0].email }}. If you want to continue using your current email, then you should <a href="https://support.google.com/mail/answer/10957?hl=en">set up forwarding</a>. Emails sent from this grain will appear to be from {{ result.profiles[0].email }} by default.
   </div>
 </div>
 {% endif %}
