@@ -29,7 +29,7 @@ lib/x86_64-linux-gnu/libgcc_s.so.1
 lib/x86_64-linux-gnu/libgcrypt.so.11
 lib/x86_64-linux-gnu/libgcrypt.so.11.8.2
 lib/x86_64-linux-gnu/libgpg-error.so.0
-lib/x86_64-linux-gnu/libgpg-error.so.0.10.0
+lib/x86_64-linux-gnu/libgpg-error.so.0.11.0
 lib/x86_64-linux-gnu/liblzma.so.5
 lib/x86_64-linux-gnu/liblzma.so.5.0.0
 lib/x86_64-linux-gnu/libm-2.19.so
@@ -696,11 +696,5 @@ usr/share/pyshared/gtk-2.0-pysupport-compat.pth
 usr/share/pyshared/lockfile.py
 usr/share/pyshared/pygst.pth
 usr/share/pyshared/pygtk.pth
-usr/share/pyshared/spambayes/Options.py
-usr/share/pyshared/spambayes/OptionsClass.py
-usr/share/pyshared/spambayes/__init__.py
-usr/share/pyshared/spambayes/chi2.py
-usr/share/pyshared/spambayes/classifier.py
-usr/share/pyshared/spambayes/safepickle.py
 usr/share/pyshared/wx.pth
 util.capnp
