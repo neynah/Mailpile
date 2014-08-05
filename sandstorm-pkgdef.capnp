@@ -6,7 +6,7 @@ const pkgdef :Spk.PackageDefinition = (
   id = "0s6hcw325yjs22c03hh09uyr0wxy8r09qet34637kep6tncfh9uh",
 
   manifest = (
-    appVersion = 1,
+    appVersion = 2,
 
     actions = [
       ( title = (defaultText = "New Mailpile Mailbox"),
@@ -28,7 +28,7 @@ const pkgdef :Spk.PackageDefinition = (
       ( sourcePath = "/bin/busybox", packagePath = "bin/sh" ),
       # Map bin/sh to busybox.
 
-      ( sourcePath = "/", hidePaths = [ "home", "proc", "sys" ] )
+      ( sourcePath = "/", hidePaths = [ "home", "proc", "sys", "lib/x86_64-linux-gnu/libnss_myhostname.so.2" ] )
       # Map root dir.
     ]
   ),
