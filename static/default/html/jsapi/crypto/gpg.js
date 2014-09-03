@@ -1,53 +1,69 @@
+/* Crypto - Render results from Mailpile.find_encryption_keys() */
+Mailpile.render_find_encryption_keys_found = function(data, query) {
+
+  var items_html = '';
+
+  _.each(data.result, function(key) {
+
+    // Loop through UIDs for match to Query
+    var uid = _.findWhere(key.uids, {email: query});
+
+    // Try to find Avatar
+    if (uid) {
+
+      var contact  = _.findWhere(Mailpile.instance.addresses, {address: uid.email});
+      var avatar   = '/static/img/avatar-default.png';
+
+      if (contact) {
+        if (contact.photo) {
+          avatar = contact.photo;
+        }
+      }
+    }
+
+    // Show View
+    var item_data = _.extend({avatar: avatar, uid: uid, address: query}, key);
+    items_html += _.template($('#template-searchkey-result-item').html(), item_data);
+ 
+    // Set Lookup State (data model)
+    var key_data = {fingerprints: key.fingerprint, address: query, origins: key.origins };
+    Mailpile.crypto_keylookup.push(key_data);
+ });
+
+  $('#modal-full').find('.modal-body').data('result', '').html('<ul>' + items_html + '</ul>');
+};
+
+
+Mailpile.render_find_encryption_keys_done = function(query) {
+  $('#modal-full').find('.progress-spinner').addClass('hide');
+  if (!this.crypto_keylookup.length) {
+    $('#modal-full').find('.modal-body').html('<p>Sorry, we could not find any encryption keys for the email address: <strong>' + query + '</strong></p>');
+  }
+};
+
+
 /* Crypto - Try to find keys locally & remotely */
 Mailpile.find_encryption_keys = function(query) {
 
-  $("#modal-full").html($("#modal-search-keyservers").html());
+  $('#modal-full').html($('#modal-search-keyservers').html());
 
-  // This used to be called Mailpile.API.async_crypto_keylookup() but was undefined method
-  // Also had the arg "allowremote": true which seemed to be trigger a bad variable error
-  Mailpile.API.async_crypto_gpg_searchkey({"q": query}, function(data, ev) {
+  Mailpile.API.async_crypto_keylookup_get({"address": query }, function(data, ev) {
 
-    console.log('called crypto_gpg_searchkey');
-
+    // Render each result found
     if (data.result) {
-      var count = _.size(data.result);
-      var total = "1 Key";
-      if (count > 1) {
-        total = count + " Keys";
-      }
-      $('#modal-full').find('.modal-title .title').html('Found ' + total);
-      $('#modal-full').find('.progress-spinner').addClass('hide');
+      $('#modal-full').find('.modal-title .title').html(data.message);
+      Mailpile.render_find_encryption_keys_found(data, query);
     }
 
+    // Running Search
     if (data.runningsearch) {
-      console.log('reuningsearch');
       var searching_data = { query: query };
       var searching_html = _.template($("#template-searchkey-running").html(), searching_data);
       $('#modal-full').find('.modal-body').html(searching_html);
     }
-
-    if (ev.flags == "c") {
-      $("#modal-search-keyservers-progress").html("");
+    else {
+      Mailpile.render_find_encryption_keys_done(query);
     }
-
-    // Build HTML Result
-    var items_html = '';
-
-    for (item in data.result) {
-
-      var key = data.result[item];
-      var avatar   = '/static/img/avatar-default.png';
-      var contact  = _.findWhere(Mailpile.instance.addresses, {address: key.uids[0].email});
-
-      if (contact == true && contact.photo !== undefined) {
-        var avatar = contact.photo;
-      }
-
-      var item_data = {avatar: avatar, uid: key.uids[0], fingerprint: key.fingerprint.split(/(....)/).join(' ')};
-      items_html += _.template($('#template-searchkey-result-item').html(), item_data);
-    }
-
-    $('#modal-full').find('.modal-body').html('<ul>' + items_html + '</ul>');
   });
 
   // Show Modal
@@ -60,28 +76,19 @@ Mailpile.find_encryption_keys = function(query) {
 };
 
 
-/* Crypto - Import key from keyserver */
-$(document).on('click', '.contact-add-key-item', function() {
-
-  var key_data = { keyid: $(this).data('keyid') };
-
-  $('#contact-search-keyserver-result').html('');
-
-  Mailpile.API.async_crypto_gpg_receivekey({}, function() {
-    $('#contact-add-key').html('<span class="icon-key"></span> Encryption Key: ' + key_data.keyid);
-    if (response.status === 'success') {
-      $('#contact-search-keyserver-result').html('w00t, something here will happen with this key: ' + response.result);
-    } else {
-      $('#contact-search-keyserver-result').html('Oopsie daisy something is rotten in Denmark :(');
-    }
+/* Crypto - Import Key */
+$(document).on('click', '.crypto-key-import', function(e) {
+  e.preventDefault();
+  var key_data = _.findWhere(Mailpile.crypto_keylookup, {fingerprints: $(this).data('fingerprint')});
+  Mailpile.API.crypto_keyimport_post(key_data, function(result) {
+    $('#modal-full').modal('hide');
   });
 });
 
 
-/* Crypto -  */
-$(document).on('click', '#button-contact-search-keyserver', function(e) {
-
-  e.preventDefault();
-
+/* Crypto - Key Use */
+$(document).on('change', '.crypto-key-policy', function() {
   
+  alert('Change Key Policy to: ' + $(this).val() + ' for fingerprint: ' + $(this).data('fingerprint'));
+
 });

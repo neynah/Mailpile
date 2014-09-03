@@ -20,6 +20,7 @@
 /* Buttons */
 /* Forms */
 /* Tables */
+/* REBAR: Add th custom color styling, better actual use of these values */
 /* Grid */
 /* Boxes */
 /* Rectangles */
@@ -52,10 +53,10 @@
   line-height: 30px;
 }
 /* Setup */
-#setup {
+#setup-container {
   position: relative;
-  top: 0px;
-  margin-top: 100px;
+  top: 65px;
+  left: 0px;
 }
 .setup-welcome-icons {
   margin-top: 40px;
@@ -70,7 +71,7 @@ div.setup-white {
   text-align: center;
 }
 div.setup-box {
-  min-height: 200px;
+  min-height: 150px;
   margin: 0px auto;
   padding: 25px;
   border-radius: 5px;
@@ -86,13 +87,20 @@ div.setup-box-medium {
 div.setup-box-large {
   width: 800px;
 }
+.setup-text-detail-large {
+  color: #b3b3b3;
+  font-size: 24px;
+}
+.setup-table {
+  background: #ffffff;
+}
 /* Setup Progress */
 #setup-progress {
-  width: 700px;
+  width: 550px;
   margin: 40px auto 20px auto;
   text-align: center;
 }
-div.setup-progress-circle {
+a.setup-progress-circle {
   display: table-cell;
   height: 45px;
   width: 45px;
@@ -101,12 +109,97 @@ div.setup-progress-circle {
   background: #f6f6f6;
   border: 1px solid #b3b3b3;
 }
+a.setup-progress-circle:hover,
+a.setup-progress-circle:hover span.setup-progress-icon {
+  color: #4d4d4d;
+  background: #dddddd;
+}
 span.setup-progress-icon {
   display: inline-block;
+  color: #b3b3b3;
 }
 span.setup-progress-line {
   width: 100px;
   display: block;
   border-bottom: 1px solid #cccccc;
   margin: 23px 8px 0px 8px;
+}
+/* Setup - Details */
+a.setup-check-connection {
+  font-weight: normal;
+}
+a.setup-check-connection:hover {
+  color: #4b9441;
+}
+/* Idenity */
+#identity-vault-lock {
+  margin: 20px 0;
+  position: relative;
+  left: 32%;
+  top: 0px;
+}
+label.radio-list-item div.radio {
+  width: 30px;
+}
+label.radio-list-item div.icon {
+  width: 30px;
+}
+label.radio-list-item .icon-key {
+  font-size: 30px;
+  line-height: 30px;
+}
+.setup-list-items {
+  background: #ffffff;
+  border-radius: 5px;
+  border: 1px solid #cccccc;
+}
+.setup-list-items li:first-child {
+  border-top: 0px solid;
+}
+.setup-item {
+  padding: 15px;
+  border-top: 1px solid #cccccc;
+}
+.setup-item ul {
+  margin-bottom: 0px;
+}
+.setup-item ul li {
+  margin-left: 20px;
+}
+.setup-item .avatar {
+  width: 50px;
+  display: inline-block;
+  float: left;
+  margin-right: 20px;
+}
+.setup-item .avatar img {
+  width: 50px;
+  border-radius: 3px;
+}
+.setup-item .name {
+  display: block;
+  margin-bottom: 5px;
+  vertical-align: text-top;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 18px;
+  color: #4d4d4d;
+}
+.setup-item .email {
+  font-size: 14px;
+  line-height: 14px;
+  color: #b3b3b3;
+}
+.setup-profile-disable .icon-minus {
+  font-size: 10px;
+  background: #4d4d4d;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 3px;
+}
+/* Setup - Sources */
+.setup-source-notice {
+  background: #fcc46d;
+  padding: 15px;
+  border-radius: 3px;
 }

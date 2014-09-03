@@ -1,9 +1,10 @@
 import datetime
 import re
 import time
-from gettext import gettext as _
 
 from mailpile.commands import Command, SearchResults
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
 from mailpile.mailutils import Email, FormatMbxId
 from mailpile.mailutils import ExtractEmails, ExtractEmailAndName
 from mailpile.plugins import PluginManager
@@ -348,8 +349,7 @@ class Extract(Command):
         else:
             cid = args.pop(-1)
 
-        eids = self._choose_messages(args)
-        emails = [Email(idx, i) for i in eids]
+        emails = [Email(idx, i) for i in self._choose_messages(args)]
         results = []
         for e in emails:
             if cid[0] == '*':

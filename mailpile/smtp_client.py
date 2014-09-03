@@ -2,36 +2,54 @@ import random
 import hashlib
 import smtplib
 import socket
-import subprocess
 import sys
-from gettext import ngettext as _n
 
 import mailpile.util
 from mailpile.util import *
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
 from mailpile.config import ssl, socks
 from mailpile.mailutils import CleanMessage, MessageAsString
 from mailpile.eventlog import Event
+from mailpile.safe_popen import Popen, PIPE
 
 
-def Sha512Check(challenge, bits, solution):
+def sha512_512k(data):
+    #
+    # This abuse of sha512 forces it to work with at least 512kB of data,
+    # no matter what it started with. On each iteration, we add one
+    # hexdigest to the front of the string (to prevent reuse of state).
+    # Each hexdigest is 128 bytes, so that gives:
+    #
+    # Total == 128 * (0 + 1 + 2 + ... + 90) + 128 == 128 * 4096 == 524288
+    #
+    # Max memory use is sadly only 10KB or so - hardly memory-hard. :-)
+    # Oh well!  I'm no cryptographer, and yes, we should probably just
+    # be using scrypt.
+    #
+    sha512 = hashlib.sha512
+    for i in range(0, 91):
+        data = sha512(data).hexdigest() + data
+    return sha512(data).hexdigest()
+
+
+def sha512_512kCheck(challenge, bits, solution):
     hexchars = bits // 4
     wanted = '0' * hexchars
-    digest = hashlib.sha512('-'.join([solution, challenge])).hexdigest()
+    digest = sha512_512k('-'.join([solution, challenge]))
     return (digest[:hexchars] == wanted)
 
 
-def Sha512Collide(challenge, bits, callback100k=None):
-    sha512 = hashlib.sha512
+def sha512_512kCollide(challenge, bits, callback1k=None):
     hexchars = bits // 4
     wanted = '0' * hexchars
-    for i in xrange(1, 0x100):
-        if callback100k is not None:
-            callback100k(i)
+    for i in xrange(1, 0x10000):
+        if callback1k is not None:
+            callback1k(i)
         challenge_i = '-'.join([str(i), challenge])
-        for j in xrange(0, 102400):
+        for j in xrange(0, 1024):
             collision = '-'.join([str(j), challenge_i])
-            digest = sha512(collision).hexdigest()
-            if digest[:hexchars] == wanted:
+            if sha512_512k(collision)[:hexchars] == wanted:
                 return '-'.join(collision.split('-')[:2])
     return None
 
@@ -41,11 +59,15 @@ SMTORP_HASHCASH_PREFIX = 'Please collide'
 SMTORP_HASHCASH_FORMAT = (SMTORP_HASHCASH_PREFIX +
                           ' %(bits)d,%(challenge)s or retry. See: %(url)s')
 
-def SMTorP_HashCash(rcpt, msg, callback100k=None):
+def SMTorP_HashCash(rcpt, msg, callback1k=None):
     bits_challenge_etc = msg[len(SMTORP_HASHCASH_PREFIX):].strip()
     bits, challenge = bits_challenge_etc.split()[0].split(',', 1)
-    return '%s##%s' % (rcpt, Sha512Collide(challenge, int(bits),
-                                           callback100k=callback100k))
+    def cb(*args, **kwargs):
+        play_nice_with_threads()
+        if callback1k:
+            callback1k(*args, **kwargs)
+    return '%s##%s' % (rcpt, sha512_512kCollide(challenge, int(bits),
+                                                callback1k=cb))
 
 
 def _AddSocksHooks(cls, SSL=False):
@@ -80,10 +102,12 @@ else:
 
 
 class SendMailError(IOError):
-    pass
+    def __init__(self, msg, details=None):
+        IOError.__init__(self, msg)
+        self.error_info = details or {}
 
 
-def _RouteTuples(session, from_to_msg_ev_tuples):
+def _RouteTuples(session, from_to_msg_ev_tuples, test_route=None):
     tuples = []
     for frm, to, msg, events in from_to_msg_ev_tuples:
         dest = {}
@@ -103,10 +127,17 @@ def _RouteTuples(session, from_to_msg_ev_tuples):
                          "host": "",
                          "port": 25
                          }
-                route.update(session.config.get_sendmail(frm, [recipient]))
+
+                if test_route:
+                    route.update(test_route)
+                else:
+                    route.update(session.config.get_sendmail(frm, [recipient]))
+
                 if route["command"]:
                     txtroute = "|%(command)s" % route
                 else:
+                    # FIXME: This is dumb, makes it hard to handle usernames
+                    #        or passwords with funky characters in them :-(
                     txtroute = "%(protocol)s://%(username)s:%(password)s@" \
                                + "%(host)s:%(port)d"
                     txtroute %= route
@@ -118,8 +149,10 @@ def _RouteTuples(session, from_to_msg_ev_tuples):
     return tuples
 
 
-def SendMail(session, msg_mid, from_to_msg_ev_tuples):
-    routes = _RouteTuples(session, from_to_msg_ev_tuples)
+def SendMail(session, msg_mid, from_to_msg_ev_tuples,
+             test_only=False, test_route=None):
+    routes = _RouteTuples(session, from_to_msg_ev_tuples,
+                          test_route=test_route)
 
     # Randomize order of routes, so we don't always try the broken
     # one first. Any failure will bail out, but we do keep track of
@@ -148,16 +181,17 @@ def SendMail(session, msg_mid, from_to_msg_ev_tuples):
                 session.config.event_log.log_event(ev)
         session.ui.mark(msg)
 
-    def fail(msg, events):
+    def fail(msg, events, details=None):
         mark(msg, events, log=True)
         for ev in events:
             ev.data['last_error'] = msg
-        raise SendMailError(msg)
+        raise SendMailError(msg, details=details)
 
     def smtp_do_or_die(msg, events, method, *args, **kwargs):
         rc, msg = method(*args, **kwargs)
         if rc != 250:
-           fail(msg + ' (%s %s)' % (rc, msg), events)
+           fail(msg + ' (%s %s)' % (rc, msg), events,
+                details={'smtp_error': '%s: %s' % (rc, msg)})
 
     # Do the actual delivering...
     for frm, sendmail, to, msg, events in routes:
@@ -175,14 +209,17 @@ def SendMail(session, msg_mid, from_to_msg_ev_tuples):
         if sendmail.startswith('|'):
             sendmail %= {"rcpt": ",".join(to)}
             cmd = sendmail[1:].strip().split()
-            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+            proc = Popen(cmd, stdin=PIPE, long_running=True)
             sm_startup = None
             sm_write = proc.stdin.write
             def sm_close():
                 proc.stdin.close()
                 rv = proc.wait()
                 if rv != 0:
-                    fail(_('%s failed with exit code %d') % (cmd, rv), events)
+                    fail(_('%s failed with exit code %d') % (cmd, rv), events,
+                         details={'failed_command': cmd,
+                                  'exit_code': rv})
+
             sm_cleanup = lambda: [proc.stdin.close(), proc.wait()]
             # FIXME: Update session UI with progress info
             for ev in events:
@@ -235,7 +272,8 @@ def SendMail(session, msg_mid, from_to_msg_ev_tuples):
                     try:
                         server.login(user, pwd)
                     except smtplib.SMTPAuthenticationError:
-                        fail(_('Invalid username or password'), events)
+                        fail(_('Invalid username or password'), events,
+                             details={'authentication_error': True})
 
                 smtp_do_or_die(_('Sender rejected by SMTP server'),
                                events, server.mail, frm)
@@ -265,14 +303,19 @@ def SendMail(session, msg_mid, from_to_msg_ev_tuples):
                 if hasattr(server, 'sock'):
                     server.close()
         else:
-            fail(_('Invalid sendmail command/SMTP server: %s') % sendmail)
+            fail(_('Invalid sendmail command/SMTP server: %s') % sendmail,
+                 events)
 
         try:
             # Run the entire connect/login sequence in a single timer...
             if sm_startup:
                 RunTimed(30, sm_startup)
 
+            if test_only:
+                return True
+
             mark(_('Preparing message...'), events)
+
             msg_string = MessageAsString(CleanMessage(session.config, msg))
             total = len(msg_string)
             while msg_string:
@@ -303,3 +346,4 @@ def SendMail(session, msg_mid, from_to_msg_ev_tuples):
                                             if ev.private_data[k]])
         finally:
             sm_cleanup()
+    return True

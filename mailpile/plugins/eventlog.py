@@ -1,8 +1,9 @@
 import time
-from gettext import gettext as _
 
-from mailpile.plugins import PluginManager
 from mailpile.commands import Command
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
+from mailpile.plugins import PluginManager
 from mailpile.util import *
 
 
@@ -19,6 +20,7 @@ class Events(Command):
         'wait': 'seconds to wait for new data',
         'incomplete': 'incomplete events only?',
         # Filtering by event attributes
+        'event_id': 'an event ID',
         'flag': 'require a flag',
         'flags': 'match all flags',
         'since': 'wait for new data?',
@@ -28,6 +30,7 @@ class Events(Command):
         'private_data': 'var:value'
     }
     LOG_NOTHING = True
+    IS_HANGING_ACTIVITY = True
     IS_USER_ACTIVITY = False
 
     DEFAULT_WAIT_TIME = 10.0
@@ -66,7 +69,7 @@ class Events(Command):
             else:
                 filters[arg] = val
         for arg in self.data:
-            if arg in ('source', 'flags', 'flag', 'since'):
+            if arg in ('source', 'flags', 'flag', 'since', 'event_id'):
                 fset(arg, self.data[arg][0])
             elif arg in ('data', 'private_data'):
                 for data in self.data[arg]:

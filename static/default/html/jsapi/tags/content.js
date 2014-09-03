@@ -63,38 +63,6 @@ Mailpile.tag_update = function(tid, setting, value, complete) {
 };
 
 
-Mailpile.render_modal_tags = function() {
-  if (Mailpile.messages_cache.length) {
-
-    // Open Modal with selection options
-    Mailpile.API.tags({}, function(data) {
-
-      console.log('callback fired');
-
-      var tags_html = '';
-      var archive_html = '';
-  
-      $.each(data.result.tags, function(key, value) {
-        if (value.display === 'tag') {
-          tags_html += '<li class="checkbox-item-picker" data-tid="' + value.tid + '" data-slug="' + value.slug + '"><input type="checkbox"> ' + value.name + '</li>';
-        }
-        else if (value.display === 'archive') {
-          archive_html += '<li class="checkbox-item-picker" data-tid="' + value.tid + '" data-slug="' + value.slug + '"><input type="checkbox"> ' + value.name + '</li>';
-        }
-      });
-
-      var modal_html = $("#modal-tag-picker").html();
-      $('#modal-full').html(_.template(modal_html, { tags: tags_html, archive: archive_html }));
-      $('#modal-full').modal({ backdrop: true, keyboard: true, show: true, remote: false });
-    });
- 
-  } else {
-    // FIXME: Needs more internationalization support
-    alert('No Messages Selected');
-  }
-};
-
-
 $(document).on('click', '#button-tag-change-icon', function() {
 
   var icons_html = '';
@@ -164,33 +132,10 @@ $(document).on('click', '.modal-tag-color-option', function(e) {
 
 /* API - Tag Add */
 $(document).on('submit', '#form-tag-add', function(e) {
-
   e.preventDefault();
   var tag_data = $('#form-tag-add').serialize();
-
-  $.ajax({
-    url: Mailpile.api.tag_add,
-    type: 'POST',
-    data: tag_data,
-    dataType : 'json',
-    success: function(response) {
-
-      Mailpile.notification(response.status, response.message);
-
-      if (response.status === 'success') {
-      
-        // Reset form fields
-        $('#data-tag-add-tag').val('');
-        $('#data-tag-add-slug').val('');
-        $('#data-tag-add-display option[value="tag"]').prop("selected", true);
-        $('#data-tag-add-parrent option[value=""]').prop("selected", true);
-        $('#data-tag-add-template option[value="default"]').prop("selected", true);
-        $('#data-tag-add-search-terms').val('');
-        
-        // Reset Slugify
-        $('#data-tag-add-slug').slugify('#data-tag-add-tag');
-      }
-    }
+  Mailpile.API.tags_add_post(tag_data, function() {
+    window.location.href = '/tags/edit.html?only=' + $('#data-tag-add-slug').val();
   });
 });
 
@@ -198,15 +143,9 @@ $(document).on('submit', '#form-tag-add', function(e) {
 /* Tag - Delete Tag */
 $(document).on('click', '#button-tag-delete', function(e) {
   if (confirm('Sure you want to delete this tag?') === true) { 
-    $.ajax({
-      url: '/api/0/tag/delete/',
-      type: 'POST',
-      data: {tag: $('#data-tag-add-slug').val() },
-      dataType : 'json',
-      success: function(response) {
-        Mailpile.notification(response.status, response.message, 'redirect', Mailpile.urls.tags);
-      }
-    });
+    Mailpile.API.tags_delete_post({ tag: $('#data-tag-add-slug').val() }, function(response) {
+      window.location.href = '/tags/';
+    }, 'POST');
   }
 });
 
@@ -225,24 +164,43 @@ $(document).on('click', '#button-tag-toggle-archive', function(e) {
 });
 
 
-/* Tag - Update */
+/* Tag - Update the Name & Slug */
 $(document).on('blur', '#data-tag-add-tag', function(e) {
+  Mailpile.tag_update($('#data-tag-tid').val(), 'name', $(this).val(), function(response) {
+    Mailpile.tag_update($('#data-tag-tid').val(), 'slug', $('#data-tag-add-slug').val(), function(response) {
+      Mailpile.notification(response.status, '{{_("Tag Name & Slug Updated")}}');
+    });
+  });
+});
 
-  alert('Saving: ' + $(this).val())  
 
+/* Tag - Update the Slug */
+$(document).on('blur', '#data-tag-add-slug', function(e) {
+  Mailpile.tag_update($('#data-tag-tid').val(), 'slug', $('#data-tag-add-slug').val(), function(response) {
+    Mailpile.notification(response.status, '{{("Tag Name & Slug Updated")}}');
+  });
 });
 
 
 /* Tag - Update (multiple attribute events) */
 $(document).on('change', '#data-tag-display', function(e) {
-  Mailpile.tag_update($('#data-tag-tid').val(), 'display', $(this).val(), function() {
-    // FIXME: show (or move) change update in sidebar
+  Mailpile.tag_update($('#data-tag-tid').val(), 'display', $(this).val(), function(response) {
+    Mailpile.notification(response.status, response.message);
   });  
 });
 
 
+/* Tag - Update parent */
 $(document).on('change', '#data-tag-parent', function(e) {
-  Mailpile.tag_update($('#data-tag-tid').val(), 'parent', $(this).val(), function() {
-    // FIXME: show (or move) change update in sidebar
+  Mailpile.tag_update($('#data-tag-tid').val(), 'parent', $(this).val(), function(response) {
+    Mailpile.notification(response.status, response.message);
   });  
+});
+
+
+$(document).ready(function() {
+
+  // Slugify
+  $('#data-tag-add-slug').slugify('#data-tag-add-tag');
+
 });

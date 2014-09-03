@@ -1,0 +1,24 @@
+<!doctype html>
+<!--[if lt IE 7]><html class="no-js ie6 oldie" lang="en"> <![endif]-->
+<!--[if IE 7]><html class="no-js ie7 oldie" lang="en"> <![endif]-->
+<!--[if IE 8]><html class="no-js ie8 oldie" lang="en"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en"> <!--<![endif]-->
+<head>
+  <title>{% if result %}{% block title %}{{title}}{% endblock %}{% else %}Error{% endif %}</title>
+  {% block head %}{% endblock %}
+  {% include("partials/head.html") %}
+</head>
+<body>
+<div id="content-wide">
+  {% block content %}{{results}}{% endblock %}
+</div>
+{% if state.command_url in ("/setup/") %}
+<script>
+$(document).ready(function() {
+  Mailpile.instance = {};
+  SetupApp.init();
+});
+</script>
+{% endif %}
+</body>
+</html>

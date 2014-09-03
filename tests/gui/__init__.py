@@ -8,6 +8,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from mailpile.httpd import HttpWorker
 from tests import MailPileUnittest, get_shared_mailpile
 
+from mailpile.safe_popen import MakePopenUnsafe
+
+MakePopenUnsafe()
+
 
 class ElementHasClass(object):
     def __init__(self, locator_tuple, class_name):

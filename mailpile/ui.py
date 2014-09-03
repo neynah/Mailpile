@@ -10,6 +10,7 @@
 #
 ###############################################################################
 import datetime
+import getpass
 import os
 import random
 import re
@@ -19,15 +20,16 @@ import traceback
 import json
 import urllib
 from collections import defaultdict
-from gettext import gettext as _
 from json import JSONEncoder
 from jinja2 import TemplateError, TemplateSyntaxError, TemplateNotFound
 from jinja2 import TemplatesNotFound, TemplateAssertionError, UndefinedError
 
 import mailpile.commands
 import mailpile.util
-from mailpile.util import *
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
 from mailpile.search import MailIndex
+from mailpile.util import *
 
 
 class SuppressHtmlOutput(Exception):
@@ -151,7 +153,7 @@ class Completer(object):
 
 class UserInteraction:
     """Log the progress and performance of individual operations"""
-    MAX_BUFFER_LEN = 550
+    MAX_BUFFER_LEN = 150
 
     LOG_URGENT = 0
     LOG_RESULT = 5
@@ -284,11 +286,14 @@ class UserInteraction:
         if t and t[0]:
             self.time_elapsed = elapsed = t[-1][0] - t[0][0]
             if not quiet:
-                self.notify(_('Elapsed: %.3fs (%s)') % (elapsed, t[-1][1]))
-                if details:
-                    for i in range(0, len(self.times)-1):
-                        e = t[i+1][0] - t[i][0]
-                        self.debug(' -> %.3fs (%s)' % (e, t[i][1]))
+                try:
+                    self.notify(_('Elapsed: %.3fs (%s)') % (elapsed, t[-1][1]))
+                    if details:
+                        for i in range(0, len(self.times)-1):
+                            e = t[i+1][0] - t[i][0]
+                            self.debug(' -> %.3fs (%s)' % (e, t[i][1]))
+                except IndexError:
+                    self.notify(_('Elapsed: %.3fs') % elapsed)
             return elapsed
         return 0
 
@@ -478,6 +483,15 @@ class UserInteraction:
             emails[i].update_from_string(session, updates[i])
         return True
 
+    def get_password(self, prompt):
+        if not self.interactive:
+            return ''
+        try:
+            self.block()
+            return getpass.getpass(prompt.encode('utf-8'))
+        finally:
+            self.unblock()
+
 
 class HttpUserInteraction(UserInteraction):
     LOG_PREFIX = 'http/'
@@ -608,37 +622,38 @@ class Session(object):
 
     def __init__(self, config):
         self.config = config
-        self.interactive = False
         self.main = False
         self.order = None
-        self.wait_lock = threading.Condition()
+        self.wait_lock = threading.Condition(UiRLock())
         self.results = []
         self.searched = []
         self.displayed = (0, 0)
         self.task_results = []
         self.ui = UserInteraction(config)
 
+    def set_interactive(self, val):
+        self.ui.interactive = val
+
+    interactive = property(lambda s: s.ui.interactive,
+                           lambda s, v: s.set_interactive(v))
+
     def report_task_completed(self, name, result):
-        self.wait_lock.acquire()
-        self.task_results.append((name, result))
-        self.wait_lock.notify_all()
-        self.wait_lock.release()
+        with self.wait_lock:
+            self.task_results.append((name, result))
+            self.wait_lock.notify_all()
 
     def report_task_failed(self, name):
         self.report_task_completed(name, None)
 
     def wait_for_task(self, wait_for, quiet=False):
         while not mailpile.util.QUITTING:
-            self.wait_lock.acquire()
-            for i in range(0, len(self.task_results)):
-                if self.task_results[i][0] == wait_for:
-                    tn, rv = self.task_results.pop(i)
-                    self.wait_lock.release()
-                    self.ui.reset_marks(quiet=quiet)
-                    return rv
-
-            self.wait_lock.wait()
-            self.wait_lock.release()
+            with self.wait_lock:
+                for i in range(0, len(self.task_results)):
+                    if self.task_results[i][0] == wait_for:
+                        tn, rv = self.task_results.pop(i)
+                        self.ui.reset_marks(quiet=quiet)
+                        return rv
+                self.wait_lock.wait()
 
     def error(self, message):
         self.ui.error(message)

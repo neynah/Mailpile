@@ -5,13 +5,15 @@ import json
 import os
 import sys
 import traceback
-from gettext import gettext as _
 
-from mailpile.util import *
 import mailpile.commands
 import mailpile.defaults
 import mailpile.vcard
+from mailpile.i18n import i18n_disabled
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
 from mailpile.mailboxes import register as register_mailbox
+from mailpile.util import *
 
 
 ##[ Plugin discovery ]########################################################
@@ -26,6 +28,7 @@ __all__ = [
     'html_magic', 'migrate', 'smtp_server', 'crypto_policy', 
     'keylookup'
 ]
+PLUGINS = __all__
 
 
 class PluginError(Exception):
@@ -47,7 +50,11 @@ class PluginManager(object):
     REQUIRED = [
         'eventlog', 'search', 'tags', 'contacts', 'compose', 'groups',
         'dates', 'sizes', 'cryptostate', 'setup_magic', 'html_magic',
-        'plugins'
+        'plugins', 'keylookup'
+    ]
+    # Plugins we want, if they are discovered
+    WANTED = [
+        'gui'
     ]
     DISCOVERED = {}
     LOADED = []
@@ -95,7 +102,7 @@ class PluginManager(object):
                     continue
                 if pname in self.DISCOVERED and not update:
                     # FIXME: this is lame
-                    print 'Ignoring duplicate plugin: %s' % pname
+                    # print 'Ignoring duplicate plugin: %s' % pname
                     continue
                 plug_path = os.path.join(pdir, subdir)
                 manifest_filename = os.path.join(plug_path, 'manifest.json')
@@ -120,15 +127,18 @@ class PluginManager(object):
         parents = full_name.split('.')[2:] # skip mailpile.plugins
         module = "mailpile.plugins"
         for parent in parents:
-            module = '%s.%s' % (module, parent)
-            if module not in sys.modules:
-                sys.modules[module] = imp.new_module(module)
+            mp = '%s.%s' % (module, parent)
+            if mp not in sys.modules:
+                sys.modules[mp] = imp.new_module(mp)
+                sys.modules[module].__dict__[parent] = sys.modules[mp]
+            module = mp
+        assert(module == full_name)
 
         # load actual module
-        sys.modules[full_name] = imp.new_module(full_name)
         sys.modules[full_name].__file__ = full_path
-        with open(full_path, 'r') as mfd:
-            exec mfd.read() in sys.modules[full_name].__dict__
+        with i18n_disabled:
+            with open(full_path, 'r') as mfd:
+                exec mfd.read() in sys.modules[full_name].__dict__
 
     def _load(self, plugin_name, process_manifest=False, config=None):
         full_name = 'mailpile.plugins.%s' % plugin_name
@@ -148,7 +158,6 @@ class PluginManager(object):
 
             # Load the Python requested by the manifest.json
             files = manifest.get('code', {}).get('python', [])
-            files.sort(key=lambda f: len(f))
             try:
                 for filename in files:
                     path = os.path.join(dirname, filename)

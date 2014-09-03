@@ -34,7 +34,16 @@ $(document).on('click', '.message-action-forward', function() {
 /* Message - Move message to inbox */
 $(document).on('click', '.message-action-inbox', function() {
   var mid = $(this).parent().parent().parent().parent().data('mid');
-  Mailpile.tag_add_delete(['inbox'], ['spam', 'trash'], mid, function(result) {
+  Mailpile.tag_add_delete(['inbox'], ['spam', 'trash'], mid, function() {
+    window.location.href = '/in/inbox/';
+  });
+});
+
+
+/* Message - Move message to archive */
+$(document).on('click', '.message-action-archive', function() {
+  var mid = $(this).parent().parent().parent().parent().data('mid');
+  Mailpile.tag_add_delete('', ['inbox'], mid, function(response) {
     window.location.href = '/in/inbox/';
   });
 });
@@ -58,7 +67,10 @@ $(document).on('click', '.message-action-unthread', function() {
     data     : { mid: mid },
     success  : function(response) {
       if (response.status === 'success') {
-        window.location.href = Mailpile.urls.message_sent + mid + '/';
+        var notification_data = { url: Mailpile.urls.message_sent + mid + '/' };
+        $('#message-' + mid).removeClass('thread-snippet thread-message')
+                            .addClass('thread-notification')
+                            .html(_.template($('#template-thread-notification-unthreaded').html(), notification_data));
       } else {
         Mailpile.notification(response.status, response.message);
       }
@@ -122,16 +134,26 @@ $(document).on('click', '.message-action-import-key', function() {
 
 /* Message - Crypto Feedback Actions */
 $(document).on('click', '.message-crypto-action', function() {
+  Mailpile.API.crypto_gpg_keylist_secret_get({}, function(result) {
+    var mid = $(this).data('mid');
+    var modal_html = $("#modal-send-public-key").html();
+    var modal_data = { name: 'User Name', address: 'name@address.org' };
+    $('#modal-full').html(_.template(modal_html, modal_data));
 
-  var mid = $(this).data('mid');
-  var modal_html = $("#modal-send-public-key").html();
-  var modal_data = { name: 'User Name', address: 'name@address.org' };
-  $('#modal-full').html(_.template(modal_html, modal_data));
-  $('#modal-full').modal({
-    backdrop: true,
-    keyboard: true,
-    show: true,
-    remote: false
+    var key_html = '';
+
+    _.each(result.result, function(key) {
+      key_html += _.template($('#template-modal-private-key-item').html(), key);
+    });
+
+    $('#crypto-private-key-list').html(key_html);
+
+    $('#modal-full').modal({
+      backdrop: true,
+      keyboard: true,
+      show: true,
+      remote: false
+    });
   });
 });
 
@@ -149,7 +171,7 @@ $(document).on('click', '.message-crypto-investigate', function() {
     // FIXME: this needs to search all "missing_key" values
     // this is tricky as searching multiple calls to keyservers
     // can have much latency and slowness
-    Mailpile.API.crypto_gpg_searchkey(missing_keys[0], function(data) {
+    Mailpile.API.crypto_gpg_searchkey_get(missing_keys[0], function(data) {
       var modal_html = $("#modal-search-keyservers").html();
       $('#modal-full').html(_.template(modal_html, { keys: '<li>Key of User #1</li>' }));
       $('#modal-full').modal({ backdrop: true, keyboard: true, show: true, remote: false });
@@ -157,12 +179,3 @@ $(document).on('click', '.message-crypto-investigate', function() {
   }
 });
 
-
-/* Message - Form - Add contact from a message */
-$(document).on('submit', '#form-contact-add-modal', function(e) {
-  e.preventDefault();
-  Mailpile.contact_add('#form-contact-add-modal', function() {
-    $('#modal-full').modal('hide');
-    $('#message-' + mid).find('.message-action-add-contact').parent().remove();
-  });
-});

@@ -1,7 +1,8 @@
 #coding:utf-8
 import os
-from gettext import gettext as _
 
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
 from mailpile.plugins import PluginManager
 from mailpile.crypto.gpgi import GnuPG
 from mailpile.vcard import *
@@ -32,7 +33,9 @@ class GnuPGImporter(VCardImporter):
             return []
 
         gnupg = GnuPG()
+        gnupg.passphrase = self.session.config.gnupg_passphrase.get_reader()
         keys = gnupg.list_keys()
+
         results = []
         vcards = {}
         for key_id, key in keys.iteritems():

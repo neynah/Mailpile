@@ -11,7 +11,6 @@
 {% if result.data and result.data.metadata %}
   {% set metadata_json = result.data.metadata|json %}
 {% endif %}
-{% set tags_json = mailpile("tags", "display=*", "mode=flat").result.tags|json %}
 $(document).ready(function() {
 
   // Start It
@@ -25,7 +24,6 @@ $(document).ready(function() {
    "addresses": {% if result.data and result.data.addresses %}{{ addresses_json|safe }}{% else %}{}{% endif %},
    "messages": {% if result.data and result.data.messages %}{{ messages_json|safe }}{% else %}{}{% endif %},
    "metadata": {% if result.data and result.data.metadata %}{{ metadata_json|safe }}{% else %}{}{% endif %},
-   "tags": {{ tags_json|safe }},
    "search_tag_ids": {% if result.search_tag_ids %}{{result.search_tag_ids|safe }}{% else %}[]{% endif %},
    "search_addresses": []
   };

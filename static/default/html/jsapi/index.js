@@ -1,12 +1,11 @@
 // Make console.log not crash JS browsers that don't support it
-if (!window.console) window.console = { 
-    log: $.noop, 
-    group: $.noop, 
-    groupEnd: $.noop, 
-    info: $.noop, 
-    error: $.noop 
+if (!window.console) window.console = {
+    log: $.noop,
+    group: $.noop,
+    groupEnd: $.noop,
+    info: $.noop,
+    error: $.noop
 };
-
 
 Mailpile = {
     instance:           {},
@@ -14,6 +13,7 @@ Mailpile = {
     search_cache:       [],
     messages_cache:     [],
     messages_composing: {},
+    crypto_keylookup:   [],
     tags_cache:         [],
     contacts_cache:     [],
     keybindings:        [
@@ -28,6 +28,7 @@ Mailpile = {
         ["normal", "g s",    function() { Mailpile.go("/settings/profiles/"); }],
         ["normal", "h",      function() { Mailpile.go("/help/"); }],
         ["normal", "command+z ctrl+z",  function() { alert('Undo Something ') }],
+        ["normal", "space",  function() { Mailpile.bulk_action_select_target(); }],
         ["normal", "s a",    function() { Mailpile.bulk_action_select_all(); }],
         ["normal", "s b",    function() { Mailpile.bulk_action_select_between(); }],
         ["normal", "s n",    function() { Mailpile.bulk_action_select_none(); }],
@@ -78,8 +79,6 @@ Mailpile = {
     theme: {}
 };
 
-var favicon = new Favico({animation:'popFade'});
-
 
 /* **[ Mailpile - JSAPI ]******************************************************
 
@@ -100,7 +99,7 @@ Mailpile.theme = {{ theme_settings|json|safe }}
 Mailpile.API = {
     _endpoints: {
 {% for command in result.api_methods %}
-        {{command.url|replace("/", "_")}}: "/0/{{command.url}}/"{% if not loop.last %},{% endif %}
+        {{command.url|replace("/", "_")}}_{{command.method|lower}}: "/0/{{command.url}}/"{% if not loop.last %},{% endif %}
 
 {% endfor %}
     },
@@ -178,26 +177,26 @@ Mailpile.API._async_action = function(command, data, method, callback, flags) {
 
 /* Create sync & asyn API commands */
 {% for command in result.api_methods -%}
-Mailpile.API.{{command.url|replace("/", "_")}} = function(data, callback, method) {
+Mailpile.API.{{command.url|replace("/", "_")}}_{{command.method|lower}} = function(data, callback, method) {
     var methods = ["{{command.method}}"];
     if (!method || methods.indexOf(method) == -1) {
         method = methods[0];
     }
     return Mailpile.API._sync_action(
-        Mailpile.API._endpoints.{{command.url|replace("/", "_")}}, 
+        Mailpile.API._endpoints.{{command.url|replace("/", "_")}}_{{command.method|lower}},
         data,
         method,
         callback
     );
 };
 
-Mailpile.API.async_{{command.url|replace("/", "_")}} = function(data, callback, method) {
+Mailpile.API.async_{{command.url|replace("/", "_")}}_{{command.method|lower}} = function(data, callback, method) {
     var methods = ["{{command.method}}"];
     if (!method || methods.indexOf(method) == -1) {
         method = methods[0];
     }
     return Mailpile.API._async_action(
-        Mailpile.API._endpoints.{{command.url|replace("/", "_")}}, 
+        Mailpile.API._endpoints.{{command.url|replace("/", "_")}}_{{command.method|lower}},
         data,
         method,
         callback
@@ -218,3 +217,11 @@ Mailpile.API.async_{{command.url|replace("/", "_")}} = function(data, callback, 
 {% else %}{};
 {% endif %}
 {% endfor %}
+
+
+/* UI - Make fingerprints nicer */
+Mailpile.nice_fingerprint = function(fingerprint) {
+  // FIXME: I'd really love to make these individual pieces color coded
+  // Pertaining to the hex value pairings & even perhaps toggle-able icons
+  return fingerprint.split(/(....)/).join(' ');
+};

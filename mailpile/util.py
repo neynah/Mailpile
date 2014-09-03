@@ -5,6 +5,7 @@
 import cgi
 import datetime
 import hashlib
+import inspect
 import locale
 import re
 import subprocess
@@ -16,8 +17,11 @@ import threading
 import time
 import StringIO
 from distutils import spawn
-from gettext import gettext as _
-from mailpile.crypto.gpgi import GnuPG
+
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
+from mailpile.safe_popen import Popen, PIPE
+
 
 try:
     from PIL import Image
@@ -28,9 +32,12 @@ except:
 global WORD_REGEXP, STOPLIST, BORING_HEADERS, DEFAULT_PORT, QUITTING
 
 
+TESTING = False
 QUITTING = False
 LAST_USER_ACTIVITY = 0
+LIVE_USER_ACTIVITIES = 0
 
+MAIN_PID = os.getpid()
 DEFAULT_PORT = 33411
 
 WORD_REGEXP = re.compile('[^\s!@#$%^&*\(\)_+=\{\}\[\]'
@@ -50,7 +57,7 @@ BORING_HEADERS = ('received', 'date',
 
 EXPECTED_HEADERS = ('from', 'to', 'subject', 'date')
 
-B64C_STRIP = '\n='
+B64C_STRIP = '\r\n='
 
 B64C_TRANSLATE = string.maketrans('/', '_')
 
@@ -58,9 +65,89 @@ B64W_TRANSLATE = string.maketrans('/+', '_-')
 
 STRHASH_RE = re.compile('[^0-9a-z]+')
 
+ALPHA_RE  = re.compile("\A[a-zA-Z]+\Z")
+EMAIL_RE = re.compile("\A.+@.+\Z")
+DNSNAME_RE = re.compile("\A([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,32}\Z")
+
 B36_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 RE_LONG_LINE_SPLITTER = re.compile('([^\n]{,72}) ')
+
+# see: http://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml
+# currently we just use common ones
+PERMANENT_URI_SCHEMES = set([
+  "data", "file", "ftp", "gopher", "http", "https", "imap",
+  "jabber", "mailto", "news", "telnet", "tftp", "ws", "wss"
+])
+PROVISIONAL_URI_SCHEMES = set([
+  "bitcoin", "chrome", "cvs", "feed", "git", "irc", "magnet",
+  "sftp", "smtp", "ssh", "steam", "svn"
+])
+URI_SCHEMES = PERMANENT_URI_SCHEMES.union(PROVISIONAL_URI_SCHEMES)
+
+def WhereAmI(start=1):
+    stack = inspect.stack()
+    return '%s' % '->'.join(
+        ['%s:%s' % ('/'.join(stack[i][1].split('/')[-2:]), stack[i][2])
+         for i in reversed(range(start, len(stack)-1))])
+
+
+##[ Lock debugging tools ]##################################################
+
+def _TracedLock(what, *a, **kw):
+    lock = what(*a, **kw)
+
+    class Wrapper:
+        def acquire(self, *args, **kwargs):
+            if self.locked():
+                print '==!== Waiting for %s at %s' % (str(lock), WhereAmI(2))
+            return lock.acquire(*args, **kwargs)
+        def release(self, *args, **kwargs):
+            return lock.release(*args, **kwargs)
+        def __enter__(self, *args, **kwargs):
+            if self.locked():
+                print '==!== Waiting for %s at %s' % (str(lock), WhereAmI(2))
+            return lock.__enter__(*args, **kwargs)
+        def __exit__(self, *args, **kwargs):
+            return lock.__exit__(*args, **kwargs)
+        def _is_owned(self, *args, **kwargs):
+            return lock._is_owned(*args, **kwargs)
+        def locked(self, *args, **kwargs):
+            acquired = False
+            try:
+                acquired = lock.acquire(False)
+                return (not acquired)
+            finally:
+                if acquired:
+                    lock.release()
+
+    return Wrapper()
+
+
+def TracedLock(*args, **kwargs):
+    return _TracedLock(threading.Lock, *args, **kwargs)
+
+
+def TracedRLock(*args, **kwargs):
+    return _TracedLock(threading.RLock, *args, **kwargs)
+
+
+TracedLocks = (TracedLock, TracedRLock)
+UnTracedLocks = (threading.Lock, threading.RLock)
+
+# Replace with as necessary TracedLocks to track down deadlocks.
+EventLock, EventRLock = UnTracedLocks
+ConfigLock, ConfigRLock = UnTracedLocks
+CryptoLock, CryptoRLock = UnTracedLocks
+UiLock, UiRLock = UnTracedLocks
+WorkerLock, WorkerRLock = UnTracedLocks
+MboxLock, MboxRLock = UnTracedLocks
+SearchLock, SearchRLock = UnTracedLocks
+PListLock, PListRLock = UnTracedLocks
+VCardLock, VCardRLock = UnTracedLocks
+MSrcLock, MSrcRLock = UnTracedLocks
+
+##############################################################################
 
 
 class WorkerError(Exception):
@@ -331,11 +418,10 @@ def friendly_number(number, base=1000, decimals=0, suffix='',
 
 
 def decrypt_and_parse_lines(fd, parser, config,
-                            newlines=False, decode='utf-8'):
+                            newlines=False, decode='utf-8',
+                            _raise=IOError):
     import mailpile.crypto.streamer as cstrm
-    begin_sym = cstrm.PartialDecryptingStreamer.BEGIN_MED[:-1]
-    begin_pgp = cstrm.PartialDecryptingStreamer.BEGIN_PGP[:-1]
-    symmetric_key = config and config.prefs.obfuscate_index or 'missing'
+    symmetric_key = config and config.master_key or 'missing'
 
     if not newlines:
         if decode:
@@ -351,8 +437,13 @@ def decrypt_and_parse_lines(fd, parser, config,
     for line in fd:
         if cstrm.PartialDecryptingStreamer.StartEncrypted(line):
             with cstrm.PartialDecryptingStreamer(
-                    [line], symmetric_key, fd) as pdsfd:
+                    [line], fd,
+                    name='decrypt_and_parse',
+                    mep_key=symmetric_key,
+                    gpg_pass=(config.gnupg_passphrase.get_reader()
+                              if config else None)) as pdsfd:
                 _parser(pdsfd)
+                pdsfd.verify(_raise=_raise)
         else:
             _parser([line])
 
@@ -400,9 +491,8 @@ class GpgWriter(object):
 def gpg_open(filename, recipient, mode):
     fd = open(filename, mode)
     if recipient and ('a' in mode or 'w' in mode):
-        gpg = subprocess.Popen(['gpg', '--batch', '-aer', recipient],
-                               stdin=subprocess.PIPE,
-                               stdout=fd)
+        gpg = Popen(['gpg', '--batch', '-aer', recipient],
+                    stdin=PIPE, stdout=fd)
         return GpgWriter(gpg)
     return fd
 
@@ -421,7 +511,7 @@ def dict_merge(*dicts):
     return final
 
 
-def play_nice_with_threads():
+def play_nice_with_threads(sleep=True):
     """
     Long-running batch jobs should call this now and then to pause
     their activities in case there are other threads that would like to
@@ -432,12 +522,22 @@ def play_nice_with_threads():
     if threads < 1:
         return 0
 
-    activity_threshold = (300 - time.time() + LAST_USER_ACTIVITY) / 300
-    delay = (max(0, 0.002 * threads) +
-             max(0, min(0.20, 0.400 * activity_threshold)))
+    lc = 0
+    while True:
+        activity_threshold = (300 - time.time() + LAST_USER_ACTIVITY) / 300
+        delay = (max(0, 0.002 * threads) +
+                 max(0, min(0.10, 0.400 * activity_threshold)))
+        if not sleep:
+            break
 
-    if delay > 0.005:
+        # This isn't just about sleeping, this is also basically a hack
+        # to release the GIL and let other threads run.
         time.sleep(delay)
+
+        lc += 1
+        if QUITTING or LIVE_USER_ACTIVITIES < 1 or lc > 10:
+            break
+
     return delay
 
 
@@ -563,7 +663,7 @@ class RunTimedThread(threading.Thread):
     def run_timed(self, timeout):
         self.start()
         self.join(timeout=timeout)
-        if self.isAlive():
+        if self.isAlive() or QUITTING:
             raise TimedOut('Timed out: %s' % self.name)
 
 

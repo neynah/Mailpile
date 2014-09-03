@@ -5,12 +5,11 @@ import rfc822
 import time
 import threading
 import traceback
-from gettext import gettext as _
-from gettext import ngettext as _n
 from urllib import quote, unquote
 
 import mailpile.util
-from mailpile.util import *
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
 from mailpile.plugins import PluginManager
 from mailpile.mailutils import FormatMbxId, MBX_ID_LEN, NoSuchMailboxError
 from mailpile.mailutils import AddressHeaderParser
@@ -18,6 +17,7 @@ from mailpile.mailutils import ExtractEmails, ExtractEmailAndName
 from mailpile.mailutils import Email, ParseMessage, HeaderPrint
 from mailpile.postinglist import GlobalPostingList
 from mailpile.ui import *
+from mailpile.util import *
 
 
 _plugins = PluginManager()
@@ -121,8 +121,8 @@ class MailIndex:
         self.EMAILS_SAVED = 0
         self._scanned = {}
         self._saved_changes = 0
-        self._lock = threading.RLock()
-        self._save_lock = threading.RLock()
+        self._lock = SearchRLock()
+        self._save_lock = SearchRLock()
         self._prepare_sorting()
 
     @classmethod
@@ -150,11 +150,13 @@ class MailIndex:
     @classmethod
     def get_body(self, msg_info):
         if msg_info[self.MSG_BODY].startswith('{'):
-            return json.loads(msg_info[self.MSG_BODY])
-        else:
-            return {
-                'snippet': msg_info[self.MSG_BODY]
-            }
+            try:
+                return json.loads(msg_info[self.MSG_BODY])
+            except ValueError:
+                pass
+        return {
+            'snippet': msg_info[self.MSG_BODY]
+        }
 
     @classmethod
     def truncate_body_snippet(self, body, max_chars):
@@ -247,10 +249,16 @@ class MailIndex:
         if session:
             session.ui.mark(_('Loading metadata index...'))
         try:
-            with self._lock, self._save_lock:
+            import mailpile.mail_source
+            with self._save_lock, self._lock, \
+                    mailpile.mail_source.GLOBAL_RESCAN_LOCK:
                 with open(self.config.mailindex_file(), 'r') as fd:
+                    # We don't raise on errors, in case only some of the chunks
+                    # are corrupt - we want to read the rest of them.
+                    # FIXME: Differentiate between partial index and no index?
                     decrypt_and_parse_lines(fd, process_lines, self.config,
-                                            newlines=True, decode=False)
+                                            newlines=True, decode=False,
+                                            _raise=False)
         except IOError:
             if session:
                 session.ui.warning(_('Metadata index not found: %s'
@@ -311,9 +319,11 @@ class MailIndex:
                     quoted_email = quote(self.EMAILS[eid].encode('utf-8'))
                     emails.append('@%s\t%s\n' % (b36(eid), quoted_email))
                 self.EMAILS_SAVED = total
+
             # Unlocked, try to write this out
-            with gpg_open(self.config.mailindex_file(),
-                          self.config.prefs.gpg_recipient, 'a') as fd:
+            gpgr = self.config.prefs.gpg_recipient
+            gpgr = gpgr if gpgr not in (None, '', '!CREATE') else None
+            with gpg_open(self.config.mailindex_file(), gpgr, 'a') as fd:
                 fd.write(''.join(emails))
                 for pos in mods:
                     fd.write(self.INDEX[pos] + '\n')
@@ -342,7 +352,9 @@ class MailIndex:
             idxfile = self.config.mailindex_file()
             newfile = '%s.new' % idxfile
 
-            with gpg_open(newfile, self.config.prefs.gpg_recipient, 'w') as fd:
+            gpgr = self.config.prefs.gpg_recipient
+            gpgr = gpgr if gpgr not in (None, '', '!CREATE') else None
+            with gpg_open(newfile, gpgr, 'w') as fd:
                 fd.write('# This is the mailpile.py index file.\n')
                 fd.write('# We have %d messages!\n' % len(self.INDEX))
 
@@ -523,22 +535,48 @@ class MailIndex:
 
     def scan_mailbox(self, session, mailbox_idx, mailbox_fn, mailbox_opener,
                      process_new=None, apply_tags=None, stop_after=None,
-                     editable=False):
+                     editable=False, event=None):
+        if event and 'rescans' not in event.data:
+            event.data['rescans'] = []
+            event.data['rescan'] = progress = {}
+        else:
+            progress = {}
+
         mailbox_idx = FormatMbxId(mailbox_idx)
+        progress.update({
+            'running': True,
+            'complete': False,
+            'mailbox_id': mailbox_idx,
+            'errors': [],
+            'added': 0,
+            'updated': 0,
+            'total': 0,
+            'batch_size': 0
+        })
+
+        def finito(code, message, **kwargs):
+            if event:
+                event.data['rescans'].append(
+                    (mailbox_idx, code, message, kwargs))
+                progress['running'] = False
+                if 'complete' in kwargs:
+                    progress['complete'] = kwargs['complete']
+            session.ui.mark(message)
+            return code
+
         try:
             mbox = mailbox_opener(session, mailbox_idx)
             if mbox.editable != editable:
-                session.ui.mark(_('%s: Skipped: %s'
-                                  ) % (mailbox_idx, mailbox_fn))
-                return 0
+                return finito(0, _('%s: Skipped: %s'
+                                   ) % (mailbox_idx, mailbox_fn))
             else:
                 session.ui.mark(_('%s: Checking: %s'
                                   ) % (mailbox_idx, mailbox_fn))
                 mbox.update_toc()
         except (IOError, OSError, ValueError, NoSuchMailboxError), e:
-            session.ui.mark(_('%s: Error opening: %s (%s)'
-                              ) % (mailbox_idx, mailbox_fn, e))
-            return -1
+            return finito(-1, _('%s: Error opening: %s (%s)'
+                                ) % (mailbox_idx, mailbox_fn, e),
+                          error=True)
 
         if len(self.PTRS.keys()) == 0:
             self.update_ptrs_and_msgids(session)
@@ -547,7 +585,9 @@ class MailIndex:
         messages = sorted(mbox.keys())
         messages_md5 = md5_hex(str(messages))
         if messages_md5 == self._scanned.get(mailbox_idx, ''):
-            return 0
+            return finito(0, _('%s: No new mail in: %s'
+                               ) % (mailbox_idx, mailbox_fn),
+                          complete=True)
 
         parse_fmt1 = _('%s: Reading your mail: %d%% (%d/%d message)')
         parse_fmtn = _('%s: Reading your mail: %d%% (%d/%d messages)')
@@ -556,20 +596,33 @@ class MailIndex:
             return ((n == 1) and parse_fmt1 or parse_fmtn
                     ) % (mailbox_idx, 100 * ui / n, ui, n)
 
+        progress.update({
+            'total': len(messages),
+            'batch_size': stop_after or len(messages)
+        })
+
+        # Figure out which messages exist at all (so we can remove
+        # stale pointers later on).
+        for ui in range(0, len(messages)):
+            msg_ptr = mbox.get_msg_ptr(mailbox_idx, messages[ui])
+            existing_ptrs.add(msg_ptr)
+            if (ui % 317) == 0:
+                play_nice_with_threads()
+
         added = updated = 0
         last_date = long(time.time())
+        not_done_yet = 'NOT DONE YET'
         for ui in range(0, len(messages)):
             if mailpile.util.QUITTING or self.interrupt:
-                session.ui.debug(_('Rescan interrupted: %s') % self.interrupt)
                 self.interrupt = None
-                return -1
+                return finito(-1, _('Rescan interrupted: %s'
+                                    ) % self.interrupt)
             if stop_after and added >= stop_after:
-                messages_md5 = 'NOT DONE YET'
+                messages_md5 = not_done_yet
                 break
 
             i = messages[ui]
             msg_ptr = mbox.get_msg_ptr(mailbox_idx, i)
-            existing_ptrs.add(msg_ptr)
             if msg_ptr in self.PTRS:
                 if (ui % 317) == 0:
                     session.ui.mark(parse_status(ui))
@@ -589,6 +642,7 @@ class MailIndex:
             except (IOError, OSError, ValueError, IndexError, KeyError):
                 if session.config.sys.debug:
                     traceback.print_exc()
+                progress['errors'].append(i)
                 session.ui.warning(('Reading message %s/%s FAILED, skipping'
                                     ) % (mailbox_idx, i))
                 continue
@@ -612,21 +666,31 @@ class MailIndex:
                 GlobalPostingList.Optimize(session, self,
                                            lazy=True, quick=True)
 
+            progress.update({
+                'added': added,
+                'updated': updated,
+            })
+
         with self._lock:
             for msg_ptr in self.PTRS.keys():
                 if (msg_ptr[:MBX_ID_LEN] == mailbox_idx and
                         msg_ptr not in existing_ptrs):
                     self._remove_location(session, msg_ptr)
                     updated += 1
+        progress.update({
+            'added': added,
+            'updated': updated,
+        })
         play_nice_with_threads()
 
-        if added or updated:
-            mbox.save(session)
         self._scanned[mailbox_idx] = messages_md5
         short_fn = '/'.join(mailbox_fn.split('/')[-2:])
-        session.ui.mark(_('%s: Indexed mailbox: ...%s (%d new, %d updated)'
-                          ) % (mailbox_idx, short_fn, added, updated))
-        return added
+        return finito(added,
+                      _('%s: Indexed mailbox: ...%s (%d new, %d updated)'
+                        ) % (mailbox_idx, short_fn, added, updated),
+                      new=added,
+                      updated=updated,
+                      complete=(messages_md5 != not_done_yet))
 
     def edit_msg_info(self, msg_info,
                       msg_mid=None, raw_msg_id=None, msg_id=None, msg_ts=None,
@@ -718,7 +782,8 @@ class MailIndex:
 
     def index_email(self, session, email):
         # Extract info from the email object...
-        msg = email.get_msg(pgpmime=session.config.prefs.index_encrypted)
+        msg = email.get_msg(pgpmime=session.config.prefs.index_encrypted,
+                            crypto_state_feedback=False)
         msg_mid = email.msg_mid()
         msg_info = email.get_msg_info()
         msg_size = email.get_msg_size()
@@ -1029,7 +1094,8 @@ class MailIndex:
                                             ('text_parts', )))
 
             # Look for inline PGP parts, update our status if found
-            e.evaluate_pgp(tree, decrypt=session.config.prefs.index_encrypted)
+            e.evaluate_pgp(tree, decrypt=session.config.prefs.index_encrypted,
+                                 crypto_state_feedback=False)
             msg.signature_info = tree['crypto']['signature']
             msg.encryption_info = tree['crypto']['encryption']
 

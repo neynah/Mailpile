@@ -1,4 +1,4 @@
-APPVER = "0.2.0"
+APPVER = "0.3.1"
 ABOUT = """\
 Mailpile.py          a tool                 Copyright 2013-2014, Mailpile ehf
                for searching and                   <https://www.mailpile.is/>
@@ -12,9 +12,14 @@ Software Foundation. See the file COPYING.md for details.
 #############################################################################
 import os
 import time
-from gettext import gettext as _
 
 from mailpile.config import PathDict
+from mailpile.config import ConfigRule as c
+from mailpile.config import PublicConfigRule as p
+from mailpile.config import KeyConfigRule as k
+
+
+_ = lambda string: string
 
 
 DEFAULT_SENDMAIL = '|/usr/sbin/sendmail -i %(rcpt)s'
@@ -22,19 +27,20 @@ CONFIG_PLUGINS = []
 CONFIG_RULES = {
     'version': [_('Mailpile program version'), False, APPVER],
     'timestamp': [_('Configuration timestamp'), int, int(time.time())],
-    'sys': [_('Technical system settings'), False, {
+    'master_key': k(_('Master symmetric encryption key'), str, ''),
+    'sys': p(_('Technical system settings'), False, {
         'fd_cache_size':  (_('Max files kept open at once'), int,         500),
         'history_length': (_('History length (lines, <0=no save)'), int,  100),
-        'http_port':      (_('Listening port for web UI'), int,         33411),
+        'http_port':     p(_('Listening port for web UI'), int,         33411),
         'postinglist_kb': (_('Posting list target size in KB'), int,       64),
         'sort_max':       (_('Max results we sort "well"'), int,         2500),
         'snippet_max':    (_('Max length of metadata snippets'), int,     250),
-        'debug':          (_('Debugging flags'), str,                      ''),
+        'debug':         p(_('Debugging flags'), str,                      ''),
         'gpg_keyserver':  (_('Host:port of PGP keyserver'),
                            str, 'pool.sks-keyservers.net'),
-        'gpg_home':       (_('Override the home directory of GnuPG'), 'dir',
+        'gpg_home':      p(_('Override the home directory of GnuPG'), 'dir',
                            None),
-        'http_host':      (_('Listening host for web UI'),
+        'http_host':     p(_('Listening host for web UI'),
                            'hostname', 'localhost'),
         'local_mailbox_id': (_('Local read/write Maildir'), 'b36',         ''),
         'mailindex_file': (_('Metadata index file'), 'file',               ''),
@@ -49,34 +55,45 @@ CONFIG_RULES = {
             'event_log':  [_('Location of event log'), 'dir', 'logs'],
         }],
         'lockdown':       [_('Demo mode, disallow changes'), bool,      False],
-    }],
-    'prefs': [_("User preferences"), False, {
+        'login_banner':   [_('A custom banner for the login page'), str,   ''],
+    }),
+    'prefs': p(_("User preferences"), False, {
         'num_results':     (_('Search results per page'), int,             20),
-        'rescan_interval': (_('New mail check frequency'), int,             0),
+        'rescan_interval': (_('New mail check frequency'), int,           900),
+        'open_in_browser': (_('Open in browser on startup'), bool,       True),
         'gpg_clearsign':   (_('Inline PGP signatures or attached'),
                             bool, False),
-        'gpg_recipient':   (_('Encrypt local data to ...'), str,           ''),
+        'gpg_recipient':  p(_('Encrypt local data to ...'), str,           ''),
         'openpgp_header':  (_('Advertise GPG preferences in a header?'),
                             ['', 'sign', 'encrypt', 'signencrypt'],
                             'signencrypt'),
         'crypto_policy':   (_('Default encryption policy for outgoing mail'),
                             str, 'none'),
+        'inline_pgp':      (_('Use inline PGP when possible'), bool,     True),
         'default_order':   (_('Default sort order'), str,          'rev-date'),
         'obfuscate_index': (_('Key to use to scramble the index'), str,    ''),
         'index_encrypted': (_('Make encrypted content searchable'),
                             bool, False),
+        'encrypt_mail':    (_('Encrypt locally stored mail'), bool,      True),
+        'encrypt_index':   (_('Encrypt the local search index'), bool,  False),
+        'encrypt_vcards':  (_('Encrypt the contact database'), bool,     True),
+        'encrypt_events':  (_('Encrypt the event log'), bool,            True),
+        'encrypt_misc':    (_('Encrypt misc. local data'), bool,         True),
         'rescan_command':  (_('Command run before rescanning'), str,       ''),
         'default_email':   (_('Default outgoing e-mail address'), 'email', ''),
         'default_route':   (_('Default outgoing mail route'), str, ''),
         'always_bcc_self': (_('Always BCC self on outgoing mail'), bool, True),
         'default_messageroute': (_('Default outgoing mail route'), str,    ''),
-        'language':        (_('User interface language'), str,             ''),
+        'language':       p(_('User interface language'), str,             ''),
         'vcard':           [_("VCard import/export settings"), False, {
             'importers':   [_("VCard import settings"), False,             {}],
             'exporters':   [_("VCard export settings"), False,             {}],
             'context':     [_("VCard context helper settings"), False,     {}],
         }],
-    }],
+    }),
+    'logins': [_('Credentials allowed to access Mailpile'), {
+        'password':        (_('Salted and hashed password'), str, '')
+    }, {}],
     'routes': [_('Outgoing message routes'), {
         'name':            (_('Route name'), str, ''),
         'protocol':        (_('Messaging protocol'),
@@ -90,6 +107,7 @@ CONFIG_RULES = {
     }, {}],
     'sources': [_('Incoming message sources'), {
         'name':            (_('Source name'), str, ''),
+        'enabled':         (_('Is this mail source enabled?'), bool, True),
         'protocol':        (_('Mailbox protocol or format'),
                             ["mbox", "maildir", "macmaildir", "gmvault",
                              "imap", "imap_ssl", "pop3"],
@@ -101,17 +119,21 @@ CONFIG_RULES = {
         'password':        (_('Password'), str, ''),
         'host':            (_('Host'), str, ''),
         'port':            (_('Port'), int, 993),
+        'keepalive':       (_('Keep server connections alive'), bool, False),
         'discovery':       (_('Mailbox discovery policy'), False, {
             'paths':       (_('Paths to watch for new mailboxes'), str, []),
             'policy':      (_('Default mailbox policy'),
                             ['unknown', 'ignore', 'watch',
                              'read', 'move', 'sync'], 'unknown'),
             'local_copy':  (_('Copy mail to a local mailbox?'), bool, False),
+            'parent_tag':  (_('Parent tag for mailbox tags'), str, '!CREATE'),
+            'guess_tags':  (_('Guess which local tags match'), bool, True),
             'create_tag':  (_('Create a tag for each mailbox?'), bool, True),
             'process_new': (_('Is a potential source of new mail'), bool, True),
             'apply_tags':  (_('Tags applied to messages'), str, []),
         }),
         'mailbox': (_('Mailboxes'), {
+            'name':        (_('The name of this mailbox'), str, ''),
             'path':        (_('Mailbox source path'), str, ''),
             'policy':      (_('Mailbox policy'),
                             ['unknown', 'ignore', 'read', 'move', 'sync'],

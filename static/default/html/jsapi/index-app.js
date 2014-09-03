@@ -1,3 +1,15 @@
+{% set tags_json = mailpile("tags", "display=*", "mode=flat").result.tags|json %}
+$(document).ready(function() {
+
+  // Print JSON for JS Use
+  Mailpile.instance['tags'] = {{ tags_json|safe }};
+
+  var inbox = _.findWhere(Mailpile.instance.tags, {slug: 'inbox'});
+  var favicon = new Favico({animation:'popFade'});
+  favicon.badge(inbox.stats.new);
+});
+
+
 /* JS App Files */
 {% include("jsapi/app/activities.js") %}
 {% include("jsapi/app/drag_drop.js") %}
@@ -10,6 +22,8 @@
 
 /* JS - Compose */
 {% include("jsapi/compose/crypto.js") %}
+{% include("jsapi/compose/autosave.js") %}
+{% include("jsapi/compose/attachments.js") %}
 {% include("jsapi/compose/content.js") %}
 {% include("jsapi/compose/tooltips.js") %}
 {% include("jsapi/compose/ui.js") %}

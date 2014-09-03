@@ -1,0 +1,35 @@
+{% extends "layouts/auth.html" %}
+{% block title %}{{_("Welcome to Mailpile!")}}{% endblock %}
+{% block content %}
+<div id="setup-welcome" class="setup-white">
+  <h1 class="animated fadeIn">Welcome to Mailpile!</h1>
+  <img style="width: 300px" src="/static/img/logo-color.svg" class="animated bounceIn">
+  <div class="setup-welcome-icons animated fadeIn">
+    <span class="setup-welcome-icon icon-message"></span>
+    <span class="setup-welcome-icon icon-inbox"></span>
+    <span class="setup-welcome-icon icon-lock-closed"></span>
+    <span class="setup-welcome-icon icon-tag"></span>
+    <span class="setup-welcome-icon icon-compose"></span>
+    <span class="setup-welcome-icon icon-key"></span>
+    <span class="setup-welcome-icon icon-donate"></span>
+  </div>
+  <h4 class="text-detail animated fadeIn">{{_("You're about to experience secure email like never before!")}}</h4>
+  <form method="POST" action="/setup/welcome/" class="animated bounceIn">
+    <p>
+    <select name="language">
+      <option value="">{{_("Select Language")}}...</option>
+      {% set selected = {(result.language or 'en_US'): ' selected'} %}
+      {% for lc in result.languages|sort %}
+      <option value="{{ lc }}"{{ selected[lc] }}>{{ result.languages[lc] }}</option>
+      {% endfor %}
+    </select>
+    </p>
+    {# 
+       This tells the backend to validate and redirect to the next step of
+       the flow. AJAXY use will probably not send this variable.
+    #}
+    <input type="hidden" name="advance" value="Yes">
+    <input type="submit" value="Begin">   
+  </form>
+</div>
+{% endblock %}

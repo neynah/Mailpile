@@ -1,7 +1,7 @@
-from gettext import gettext as _
-
 import mailpile.config
 from mailpile.commands import Command
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
 from mailpile.plugins import PluginManager
 from mailpile.urlmap import UrlMap
 from mailpile.util import *
@@ -42,7 +42,7 @@ _plugins.register_config_section('tags', ["Tags", {
     'magic_terms': ['Extra terms to search for', 'str', ''],
 
     # Tag display attributes for search results/lists/UI placement
-    'icon': ['URL to default tag icon', 'url', 'icon-tag'],
+    'icon': ['URL to default tag icon', 'str', 'icon-tag'],
     'label': ['Display as label in results', 'bool', True],
     'label_color': ['Color to use in label', 'str', '#4D4D4D'],
     'display': ['Display context in UI', ['priority', 'tag', 'subtag',
@@ -107,7 +107,13 @@ def MoveFilter(cfg, filter_id, filter_new_id):
 def GetTags(cfg, tn=None, default=None, **kwargs):
     results = []
     if tn is not None:
+        #
         # Hack, allow the tn= to be any of: TID, name or slug.
+        #
+        # However, the most precise style of match wins - so TID lookups
+        # will never get confused by slugs, and slug lookups will never
+        # get confused by names.
+        #
         tn = tn.lower()
         try:
             if tn in cfg.tags:
@@ -151,6 +157,17 @@ def GetTagID(cfg, tn):
     return tags and (len(tags) == 1) and tags[0]._key or None
 
 
+def Slugify(tag_name, tags=None):
+    slug = CleanText(tag_name.lower().replace(' ', '-'),
+                     banned=CleanText.NONDNS.replace('/', '')
+                     ).clean.lower()
+    n = 1
+    while tags and slug in [t.slug for t in tags.values()]:
+        n += 1
+        slug = Slugify('%s-%s' % (tag_name, n))
+    return slug
+
+
 def GetTagInfo(cfg, tn, stats=False, unread=None, exclude=None, subtags=None):
     tag = GetTag(cfg, tn)
     tid = tag._key
@@ -169,6 +186,7 @@ def GetTagInfo(cfg, tn, stats=False, unread=None, exclude=None, subtags=None):
     if stats and (unread is not None):
         messages = (cfg.index.TAGS.get(tid, set()) - exclude)
         stats_all = len(messages)
+        info['name'] = _(info['name'])
         info['stats'] = {
             'all': stats_all,
             'new': len(messages & unread),
@@ -199,11 +217,6 @@ mailpile.config.ConfigManager.filter_move = MoveFilter
 ##[ Commands ]################################################################
 
 class TagCommand(Command):
-    def slugify(self, tag_name):
-        return CleanText(tag_name.lower().replace(' ', '-'),
-                         banned=CleanText.NONDNS.replace('/', '')
-                         ).clean.lower()
-
     def _reorder_all_tags(self):
         taglist = [(t.display, t.display_order, t.slug, t._key)
                    for t in self.session.config.tags.values()]
@@ -391,7 +404,7 @@ class AddTag(TagCommand):
         if self.data.get('_method', 'not-http').upper() == 'GET':
             return self._success(_('Add tags here!'), {
                 'form': self.HTTP_POST_VARS,
-                'rules': self.session.config.tags.rules['_any'][1]._RULES
+                'rules': self.session.config.tags.rules['_any'][1]
             })
 
         slugs = self.data.get('slug', [])
@@ -399,12 +412,12 @@ class AddTag(TagCommand):
         if slugs and len(names) != len(slugs):
             return self._error('Name/slug pairs do not match')
         elif names and not slugs:
-            slugs = [self.slugify(n) for n in names]
-        slugs.extend([self.slugify(s) for s in self.args])
+            slugs = [Slugify(n, config.tags) for n in names]
+        slugs.extend([Slugify(s, config.tags) for s in self.args])
         names.extend(self.args)
 
         for slug in slugs:
-            if slug != self.slugify(slug):
+            if slug != Slugify(slug, config.tags):
                 return self._error('Invalid tag slug: %s' % slug)
 
         for tag in config.tags.values():

@@ -1,0 +1,129 @@
+<div id="setup-box-source-settings" class="setup-box setup-box-medium add-bottom animated bounceInRight">
+  <h2 class="text-center"><span class="icon-inbox"></span> <%= action %> Source</h2>
+
+  <form id="form-setup-source-settings" class="standard">
+
+    <div id="setup-source-settings-source" class="">
+      <table class="full-width-table half-bottom">
+      <tr>
+        <td>
+          <label>Name of mail source</label>
+          <input type="text" name="name" value="<%= name %>" id="input-setup-source-name" placeholder="My Gmail, Work Server">
+        </td>
+        <td>
+          <label>Where is this mail located?</label>
+          <select id="input-setup-source-type">
+            <option value="" <% if (!protocol) { %>selected<% } %>>select...</option>
+            <option value="local" <% if (_.indexOf(['mbox', 'maildir'], protocol) > -1) { %>selected<% } %>>On This Computer</option>
+            <option value="server" <% if (_.indexOf(['imap_ssl', 'imap', 'pop'], protocol) > -1) { %>selected<% } %>>Remote Server</option>
+          </select>
+        </td>
+      </tr>
+      </table>
+    </div>
+
+    <div id="setup-source-settings-local" class="<% if (_.indexOf(['mbox', 'maildir'], protocol) === -1) { %>hide<% } %> add-bottom">
+      <label>What app (or format) is this mail in?</label>
+      <span id="" class="validation-message"></span>
+      <select name="protocol" id="input-setup-source-local-protocol" class="input-small">
+        <option value="">select...</option>
+        <!--
+        <option value="mbox" <% if (protocol === 'mbox') { %>selected<% } %>>Thunderbird</option>
+        <option value="macmaildir">Mac Mail</option>
+        <option value="outlook">Outlook</option>
+        -->
+        <option value="mbox" <% if (protocol === 'mbox') { %>selected<% } %>>Mbox (Thunderbird)</option>
+        <option value="maildir" <% if (protocol === 'maildir') { %>selected<% } %>>Maildir</option>
+      </select>   
+      <label>Path to where mail on this computer is located:</label>
+      
+      <input type="text" name="discovery.paths[]" class="input-large" value="" placeholder="/home/chelsea/email">
+      <label>Make a copy of these messages in Mailpile</label>
+      <select name="discovery.local_copy" id="input-setup-source-local-local_copy" class="input-tiny">
+        <option value="false" selected="selected">No</option>
+        <option value="">Yes</option>
+      </select>
+    </div>
+
+    <div id="setup-source-settings-server" class="<% if (_.indexOf(['imap_ssl', 'imap', 'pop'], protocol) === -1) { %>hide<% } %>">
+      <table class="full-width-table">
+      <tr>
+        <td>
+          <label>{{_('Username')}}</label>
+          <input type="text" name="username" value="<%= username %>" placeholder="name@email.com">
+        </td>
+        <td>
+          <label>{{_('Password')}}</label>
+          <input type="password" name="password" value="<%= password %>" placeholder="">
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <label>{{_('Host')}}</label>
+          <input type="text" name="host" value="<%= host %>" placeholder="mail.server.com">
+        </td>
+        <td>
+          <label>{{_("Protocol")}}</label>
+          <select name="protocol" id="input-setup-source-server-protocol" class="input-small">
+            <option value="imap_ssl" <% if (protocol === 'imap_ssl') { %>selected<% } %>>IMAP (ssl)</option>
+            <option value="imap" <% if (protocol === 'imap') { %>selected<% } %>>IMAP</option>
+            <option value="pop" <% if (protocol === 'pop') { %>selected<% } %>>POP3</option>
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <label>{{_('Port')}}</label>
+          <input type="text" name="port" value="<%= port %>" placeholder="993" id="setup-source-settings-port" class="input-tiny">
+        </td>
+        <td>
+          <label>Download mail locally</label>
+          <select name="discovery.local_copy" id="input-setup-source-server-local_copy" class="input-tiny">
+            <option value="true" selected="selected">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </td>
+      </tr>
+      </table>
+    </div>
+
+    {#
+    <div id="setup-source-settings-details" class="hide add-bottom clearfix">
+      <h4>Details</h4>
+      FIXME: Add this to select id="input-setup-source_sync" 
+         to expose "interval" as a user setting to config 
+      <label>Keep checking for new mail or import once?</label>
+      <select name="discovery.policy" class="input-small">
+        <option value="once">Import Once</option>
+        <option value="sync">Keep Checking</option>
+      </select>
+      <div id="setup-source-settings-sync-interval" class="hide">
+        <label>{{_('Check for mail every')}}</label>
+        <select name="interval">
+          <option value="60">1 minute</option>
+          <option value="300" selected="selected">5 minutes</option>
+          <option value="600">10 minutes</option>
+          <option value="900">15 minutess</option>
+          <option value="1800">30 minutess</option>
+          <option value="3600">1 hour</option>
+          <option value="21600">6 hours</option>
+          <option value="86400">1 day</option>
+          <option value="604800">1 week</option>
+        </select>
+      </div>
+      FIXME: add support to import contacts from mail source
+      <label>Import contacts into Mailpile</label>
+      <select name="source_contacts" class="input-tiny">
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+    #}
+
+    <input type="hidden" name="_section" value="sources.<%= id %>">
+    <div class="text-center clearfix">
+      <a href="#sources" id="btn-setup-source-add-cancel" class="button-secondary left">{{_("Cancel")}}</a>
+      <button id="btn-setup-source-save" class="right">{{_("Save Source")}}</button>
+    </div>
+  </form>
+</div>

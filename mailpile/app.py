@@ -3,14 +3,19 @@ import gettext
 import locale
 import os
 import sys
-from gettext import gettext as _
 
 import mailpile.util
 import mailpile.defaults
-from mailpile.commands import COMMANDS, Action, Help, HelpSplash, Load, Rescan
-from mailpile.config import ConfigManager, getLocaleDirectory
+from mailpile.commands import COMMANDS, Command, Action
+from mailpile.commands import Help, HelpSplash, Load, Rescan
+from mailpile.config import ConfigManager
+from mailpile.i18n import gettext as _
+from mailpile.i18n import ngettext as _n
+from mailpile.plugins import PluginManager
 from mailpile.ui import ANSIColors, Session, UserInteraction, Completer
 from mailpile.util import *
+
+_plugins = PluginManager(builtin=__file__)
 
 # This makes sure mailbox "plugins" get loaded... has to go somewhere?
 from mailpile.mailboxes import *
@@ -86,27 +91,65 @@ def Interact(session):
         pass
 
 
+class InteractCommand(Command):
+    SYNOPSIS = (None, 'interact', None, None)
+    ORDER = ('Internals', 2)
+    CONFIG_REQUIRED = False
+    RAISES = (KeyboardInterrupt,)
+
+    def command(self):
+        session, config = self.session, self.session.config
+
+        session.interactive = True
+        if sys.stdout.isatty() and sys.platform != "win32":
+            session.ui.term = ANSIColors()
+
+        # Create and start the rest of the threads, load the index.
+        if config.loaded_config:
+            Load(session, '').run(quiet=True)
+        else:
+            config.prepare_workers(session, daemons=True)
+
+        session.ui.display_result(HelpSplash(session, 'help', []).run())
+        Interact(session)
+
+        return self._success(_('Ran interactive shell'))
+
+
+class WaitCommand(Command):
+    SYNOPSIS = (None, 'wait', None, None)
+    ORDER = ('Internals', 2)
+    CONFIG_REQUIRED = False
+    RAISES = (KeyboardInterrupt,)
+
+    def command(self):
+        self.session.ui.display_result(HelpSplash(self.session, 'help', []
+                                                  ).run(interactive=False))
+        while not mailpile.util.QUITTING:
+            time.sleep(1)
+        return self._success(_('Did nothing much for a while'))
+
+
 def Main(args):
     # Bootstrap translations until we've loaded everything else
-    translation = gettext.translation("mailpile", getLocaleDirectory(),
-                                      fallback=True)
-    translation.install(unicode=True)
-
+    mailpile.i18n.ActivateTranslation(None, ConfigManager, None)
     try:
         # Create our global config manager and the default (CLI) session
         config = ConfigManager(rules=mailpile.defaults.CONFIG_RULES)
         session = Session(config)
         cli_ui = session.ui = UserInteraction(config)
         session.main = True
-        session.config.load(session)
+        try:
+            config.load(session)
+        except IOError:
+            session.ui.error(_('Failed to decrypt configuration, '
+                               'please log in!'))
+        config.prepare_workers(session)
     except AccessError, e:
-        sys.stderr.write('Access denied: %s\n' % e)
+        session.ui.error('Access denied: %s\n' % e)
         sys.exit(1)
 
     try:
-        # Create and start (most) worker threads
-        config.prepare_workers(session)
-
         try:
             shorta, longa = '', []
             for cls in COMMANDS:
@@ -133,33 +176,35 @@ def Main(args):
             session.error(unicode(e))
 
         if not opts and not args:
-            # Create and start the rest of the threads, load the index.
-            session.interactive = session.ui.interactive = True
-            if sys.stdout.isatty():
-                session.ui.term = ANSIColors()
-
-            config.prepare_workers(session, daemons=True)
-            Load(session, '').run(quiet=True)
-            session.ui.display_result(HelpSplash(session, 'help', []).run())
-            Interact(session)
+            InteractCommand(session).run()
 
     except KeyboardInterrupt:
         pass
 
     finally:
-        if session.interactive and config.sys.debug:
-            session.ui.display_result(Action(session, 'ps', ''))
-            if readline:
-                readline.write_history_file(session.config.history_file())
+        if readline:
+            readline.write_history_file(session.config.history_file())
 
         # Make everything in the background quit ASAP...
         mailpile.util.LAST_USER_ACTIVITY = 0
         mailpile.util.QUITTING = True
 
-        config.plugins.process_shutdown_hooks()
+        if config.plugins:
+            config.plugins.process_shutdown_hooks()
+        if config.loaded_config:
+            config.flush_mbox_cache(session, wait=True)
+
         config.stop_workers()
         if config.index:
             config.index.save_changes()
+        if config.event_log:
+            config.event_log.close()
+
+        if session.interactive and config.sys.debug:
+            session.ui.display_result(Action(session, 'ps', ''))
+
+
+_plugins.register_commands(InteractCommand, WaitCommand)
 
 if __name__ == "__main__":
     Main(sys.argv[1:])
