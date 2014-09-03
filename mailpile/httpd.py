@@ -208,11 +208,11 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
 
         index = 0
         if len(address.address) > 0:
-            profiles[index]['name'] = address.name
+            profiles[index]['name'] = address.name.decode('utf8')
             profiles[index]['email'] = address.address
             index += 1
 
-        name = self.headers.get('x-sandstorm-username', '')
+        name = self.headers.get('x-sandstorm-username', '').decode('utf8')
         public_id = session_cap.getPublicId().wait()
 
         profiles[index]['name'] = name
