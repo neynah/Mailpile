@@ -476,6 +476,8 @@ usr/lib/python2.7/encodings/latin_1.py
 usr/lib/python2.7/encodings/latin_1.pyc
 usr/lib/python2.7/encodings/unicode_escape.py
 usr/lib/python2.7/encodings/unicode_escape.pyc
+usr/lib/python2.7/encodings/utf_32_be.py
+usr/lib/python2.7/encodings/utf_32_be.pyc
 usr/lib/python2.7/encodings/utf_8.py
 usr/lib/python2.7/encodings/utf_8.pyc
 usr/lib/python2.7/fnmatch.py
