@@ -299,7 +299,7 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
                     environ={'REQUEST_METHOD': method,
                              'CONTENT_TYPE': self.headers['Content-Type']}
                 )
-            elif ctype == ue:
+            elif ctype == ue or ctype == 'application/octet-stream':
                 if clength > 5 * 1024 * 1024:
                     raise ValueError(_('OMG, input too big'))
                 post_data = cgi.parse_qs(self.rfile.read(clength), 1)
