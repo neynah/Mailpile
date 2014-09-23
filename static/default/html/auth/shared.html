@@ -50,6 +50,10 @@ $(document).ready(function() {
   $('#login-right').height(height);
 
   $('#login-passphrase').focus();
+
+  // Auto login
+  document.querySelector('#login-passphrase').value = 'sandstorm';
+  document.querySelector('#form-login > button').click();
 });
 
 // Login Form is submitted
@@ -87,6 +91,5 @@ $(document).on('submit', '#form-login', function(e) {
     $("#logo-greenmail").fadeIn(4000);
     $("#logo-redmail").fadeIn(6000);
   }, 1000);
-
 });
 </script>
