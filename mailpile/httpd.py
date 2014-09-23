@@ -22,6 +22,12 @@ from mailpile.urlmap import UrlMap
 from mailpile.util import *
 from mailpile.ui import *
 
+import capnp
+capnp.remove_event_loop()
+capnp.create_event_loop(threaded=True)
+import hack_session_capnp
+from mailpile.plugins.contacts import AddProfile
+
 global WORD_REGEXP, STOPLIST, BORING_HEADERS, DEFAULT_PORT
 
 DEFAULT_PORT = 33411
@@ -29,6 +35,7 @@ DEFAULT_PORT = 33411
 BLOCK_HTTPD_LOCK = UiRLock()
 LIVE_HTTP_REQUESTS = 0
 
+IS_PROFILE_SET = False
 
 def Idle_HTTPD(allowed=1):
     with BLOCK_HTTPD_LOCK:
@@ -243,8 +250,58 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         ts = '%x' % int(time.time() / 60)
         return '%s-%s' % (ts, b64w(sha1b64('-'.join([self.server.secret,
                                                      ts]))))
+    def set_profile(self):
+        global IS_PROFILE_SET
+
+        if IS_PROFILE_SET:
+            return
+
+        config = self.server.session.config
+        vcards = config.vcards
+        if len(vcards) > 0:  # TODO: find better way to test if vcards is loaded
+            IS_PROFILE_SET = True
+            profiles = [vcard for vcard in vcards.values() if vcard.kind == 'profile']
+            uids = set([vcard._random_uid() for vcard in profiles])
+            for uid in uids:
+                for vcard in profiles:
+                    if vcard._random_uid() == uid:
+                        profiles.remove(vcard)
+                        break
+
+
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect("/tmp/sandstorm-api")
+
+            client = capnp.TwoPartyClient(s)
+            session_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
+            address = session_cap.getUserAddress().wait()
+
+            index = 0
+            if len(address.address) > 0:
+                if len(profiles) < 2:
+                    session = Session(config)
+                    route_id = session.config.routes.keys()[0]
+                    data = {
+                        'email': [address.address],
+                        'name': [address.name.decode('utf8')],
+                        'route_id': [route_id]
+                    }
+                    AddProfile(session, 'vcards/add', [], data, {}).run()
+                    profiles = [vcard for vcard in vcards.values() if vcard.kind == 'profile']
+
+                profiles[index].fn = address.name.decode('utf8')
+                profiles[index].email = address.address
+                index += 1
+
+            name = self.headers.get('x-sandstorm-username', '').decode('utf8')
+            public_id = session_cap.getPublicId().wait()
+
+            profiles[index].fn = name
+            profiles[index].email = public_id.publicId + '@' + public_id.hostname
 
     def do_POST(self, method='POST'):
+        self.set_profile()
+
         (scheme, netloc, path, params, query, frag) = urlparse(self.path)
         if path.startswith('/::XMLRPC::/'):
             raise ValueError(_('XMLRPC has been disabled for now.'))
@@ -275,6 +332,8 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
                 raise ValueError(_('Unknown content-type'))
 
         except (IOError, ValueError), e:
+            import sys
+            print >>sys.stderr, 'exception: ', e
             self.send_full_response(self.server.session.ui.render_page(
                 config, self._ERROR_CONTEXT,
                 body='POST geborked: %s' % e,
@@ -284,6 +343,8 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
         return self.do_GET(post_data=post_data, method=method)
 
     def do_GET(self, *args, **kwargs):
+        self.set_profile()
+
         global LIVE_HTTP_REQUESTS
         try:
             path = self.path.split('?')[0]
