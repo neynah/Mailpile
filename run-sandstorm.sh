@@ -17,13 +17,14 @@ if ! test -e mail; then
   mkdir -p /var/.local/share/Mailpile
   cp -r /default /var/.local/share/Mailpile
   cp -r /.gnupg /var
-
-  # /usr/bin/python /mp --setup
-  # /usr/bin/python /mp --set sys.http_host=0.0.0.0
-  # /usr/bin/python /mp --add /var/mail/
-  # /usr/bin/python /mp --set prefs.rescan_interval=5
-  # /usr/bin/python /mp --set prefs.empty_outbox_interval=5
 fi
+
+bash -c 'while [ ! -e /tmp/sandstorm-api ]
+do
+  sleep 1
+done
+
+/sandstorm-smtp-bridge/bin/sandstorm-smtp-bridge' &
 
 /usr/bin/python /mp --rescan all
 /usr/bin/python /mp --www= --wait
