@@ -109,7 +109,8 @@
         <li role="presentation"><a role="menuitem" tabindex="-1" class="pick-send-datetime" data-datetime="2592000" href="#">1 month</a></li>
       </ul>
       -->
-      {% set from = editing_addresses and editing_strings.from_aids and editing_addresses[editing_strings.from_aids.0] or '' %}
+      {% set from = profiles.profiles[0] %}
+      {% set from_address = profiles.emails.keys()[0] %}
       <div class="dropup">
         <div class="compose-from-select dropdown-toggle" data-toggle="dropdown">
           <span id="compose-from-selected-{{mid}}" class="compose-from-selected">
@@ -119,7 +120,7 @@
             <span class="avatar"><img src="/static/img/avatar-default-white.png"></span>
             {% endif %}
             <span class="name">{{from.fn}}</span>
-            <span class="address">{{from.address}}</span>
+            <span class="address">{{from_address}}</span>
           </span>
           <span class="compose-from-caret">
             <span class="caret"></span>
@@ -127,9 +128,6 @@
         </div>
         <ul class="dropdown-menu">
         {% set emails = profiles.emails|sort %}
-        {% if from.address not in emails %}
-          {% set emails = [from.address] + emails %}
-        {% endif %}
         {% for profile_email in emails %}
           {% set profile = (profile_email in profiles.emails)
                            and profiles.profiles[profiles.emails[profile_email]]
@@ -150,7 +148,7 @@
         {% endfor %}
         </ul>
       </div>
-      <input id="compose-from-{{mid}}" type="hidden" name="from" value="{{from.fn}} &lt;{{from.address}}&gt;">
+      <input id="compose-from-{{mid}}" type="hidden" name="from" value="{{from.fn}} &lt;{{from_address}}&gt;">
     </div>
     <div class="compose-buttons right" data-mid="{{mid}}">
       <button class="compose-action button-alert" type="submit" name="save" value="save" alt="{{_("Save")}}">

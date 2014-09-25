@@ -26,7 +26,7 @@ import capnp
 capnp.remove_event_loop()
 capnp.create_event_loop(threaded=True)
 import hack_session_capnp
-from mailpile.plugins.contacts import AddProfile
+from mailpile.plugins.contacts import AddProfile, RemoveProfile
 
 global WORD_REGEXP, STOPLIST, BORING_HEADERS, DEFAULT_PORT
 
@@ -233,16 +233,15 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
 
         config = self.server.session.config
         vcards = config.vcards
-        if len(vcards) > 0:  # TODO: find better way to test if vcards is loaded
+        if len(vcards) > 0:  # TODO: find better way to test if config is loaded
             IS_PROFILE_SET = True
-            profiles = [vcard for vcard in vcards.values() if vcard.kind == 'profile']
-            uids = set([vcard._random_uid() for vcard in profiles])
-            for uid in uids:
-                for vcard in profiles:
-                    if vcard._random_uid() == uid:
-                        profiles.remove(vcard)
-                        break
 
+            session = Session(config)
+            route_id = session.config.routes.keys()[0]
+
+            all_profiles = [vcard for vcard in vcards.values() if vcard.kind == 'profile']
+            uids = set([vcard._random_uid() for vcard in all_profiles])
+            RemoveProfile(session, 'vcards/remove', [], {'rid': list(uids)}, {}).run()
 
             s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             s.connect("/tmp/sandstorm-api")
@@ -251,28 +250,22 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
             session_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
             address = session_cap.getUserAddress().wait()
 
-            index = 0
             if len(address.address) > 0:
-                if len(profiles) < 2:
-                    session = Session(config)
-                    route_id = session.config.routes.keys()[0]
-                    data = {
-                        'email': [address.address],
-                        'name': [address.name.decode('utf8')],
-                        'route_id': [route_id]
-                    }
-                    AddProfile(session, 'vcards/add', [], data, {}).run()
-                    profiles = [vcard for vcard in vcards.values() if vcard.kind == 'profile']
-
-                profiles[index].fn = address.name.decode('utf8')
-                profiles[index].email = address.address
-                index += 1
+                data = {
+                    'email': [address.address],
+                    'name': [address.name.decode('utf8')],
+                    'route_id': [route_id]
+                }
+                AddProfile(session, 'vcards/add', [], data, {}).run()
 
             name = self.headers.get('x-sandstorm-username', '').decode('utf8')
             public_id = session_cap.getPublicId().wait()
-
-            profiles[index].fn = name
-            profiles[index].email = public_id.publicId + '@' + public_id.hostname
+            data = {
+                'name': [name],
+                'email': [public_id.publicId + '@' + public_id.hostname],
+                'route_id': [route_id]
+            }
+            AddProfile(session, 'vcards/add', [], data, {}).run()
 
     def do_POST(self, method='POST'):
         self.set_profile()
