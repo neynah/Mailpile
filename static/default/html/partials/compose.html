@@ -110,7 +110,7 @@
       </ul>
       -->
       {% set from = profiles.profiles[0] %}
-      {% set from_address = profiles.emails.keys()[0] %}
+      {% set from_address = from.email[0].email %}
       <div class="dropup">
         <div class="compose-from-select dropdown-toggle" data-toggle="dropdown">
           <span id="compose-from-selected-{{mid}}" class="compose-from-selected">
@@ -127,7 +127,7 @@
           </span>
         </div>
         <ul class="dropdown-menu">
-        {% set emails = profiles.emails|sort %}
+        {% set emails = profiles.emails %}
         {% for profile_email in emails %}
           {% set profile = (profile_email in profiles.emails)
                            and profiles.profiles[profiles.emails[profile_email]]
