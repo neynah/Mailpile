@@ -15,7 +15,7 @@ from mailpile.plugins.tags import Tag
 from mailpile.mailutils import ExtractEmails, ExtractEmailAndName, Email
 from mailpile.mailutils import NotEditableError, AddressHeaderParser
 from mailpile.mailutils import NoFromAddressError, PrepareMessage
-from mailpile.smtp_client import SendMail
+# from mailpile.smtp_client import SendMail
 from mailpile.search import MailIndex
 from mailpile.urlmap import UrlMap
 from mailpile.util import *
@@ -23,10 +23,102 @@ from mailpile.vcard import AddressInfo
 
 from mailpile.plugins.search import Search, SearchResults, View
 
+import socket
+import capnp
+import hack_session_capnp
 
 GLOBAL_EDITING_LOCK = MboxRLock()
 
 _plugins = PluginManager(builtin=__file__)
+
+# TODO: make this less hacky. Currently working around thread problems
+client = None
+email_cap = None
+
+def setup_email_cap():
+    global client
+    global email_cap
+
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.connect("/tmp/sandstorm-api")
+
+    client = capnp.TwoPartyClient(s)
+    email_cap = client.ez_restore('HackSessionContext').cast_as(hack_session_capnp.HackSessionContext)
+
+
+def SendMail(session, msg_mid, message_list):
+    import sys
+    import json
+    def split_address(raw_address, is_list=False):
+        if not isinstance(raw_address, basestring):
+            return [split_address(x) for x in raw_address]
+
+        if '<' not in raw_address:
+            ret = {'address': raw_address}
+            if is_list is True:
+                ret = [ret]
+            return ret
+
+        ind = raw_address.rfind('<')
+
+        name, address = raw_address[:ind].strip(), raw_address[ind + 1:-1].strip()
+        ret = {'name': name, 'address': address}
+        if is_list is True:
+            ret = [ret]
+
+        return ret
+
+    try:
+        if email_cap is None:
+            setup_email_cap()
+
+        raw_email = message_list[0][2]
+        req = email_cap.send_request()
+        email = req.email
+        setattr(email, 'from', split_address(raw_email['From']))  # deal with from being a reserved keyword
+
+        if 'To' in raw_email:
+            email.to = split_address(raw_email['To'], is_list=True)
+        if 'Cc' in raw_email:
+            email.cc = split_address(raw_email['Cc'], is_list=True)
+        if 'Bcc' in raw_email:
+            email.bcc = split_address(raw_email['Bcc'], is_list=True)
+        if 'Message-Id' in raw_email:
+            email.messageId = raw_email['Message-Id']
+        if 'References' in raw_email:
+            email.bcc = raw_email['References']
+        if 'Reply-To' in raw_email:
+            email.replyTo = raw_email['Reply-To']
+        if 'In-Reply-To' in raw_email:
+            email.inReplyTo = raw_email['In-Reply-To']
+
+        email.subject = raw_email['Subject']
+        email.date = int(time.time()) * 10**9
+
+        payloads = raw_email.get_payload()
+
+        attachments = []
+        if type(payloads) is list:
+            for payload in payloads:
+                if payload['Content-Type'].startswith('text/plain'):
+                    email.text = payload.get_payload()
+                elif payload['Content-Type'].startswith('text/html'):
+                    email.html = payload.get_payload()
+                else:
+                    attachment = {
+                        'contentType': attachment.get('Content-Type', ''),
+                        'contentDisposition': attachment.get('Content-Disposition', ''),
+                        'contentId': attachment.get('Content-Id', ''),
+                        'content': payload.get_payload()
+                    }
+            email.attachments = attachments
+        else:
+            email.text = payloads.get_payload()
+
+        req.send().wait()
+    except:
+        traceback.print_exc()
+        raise
 
 
 class EditableSearchResults(SearchResults):
@@ -1011,7 +1103,7 @@ class EmptyOutbox(Sendit):
 
 _plugins.register_config_variables('prefs', {
     'empty_outbox_interval': [_('Delay between attempts to send mail'),
-                              int, 90]
+                              int, 5]
 })
 _plugins.register_slow_periodic_job('sendmail',
                                     'prefs.empty_outbox_interval',
