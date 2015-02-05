@@ -1,0 +1,10 @@
+{% extends "layouts/" + render_mode + ".html" %}
+{% block title %}{{_("Donate")}}{% endblock %}
+{% block content %}
+{% set profiles = mailpile('profiles').result.profiles %}
+<div class="content-normal">
+
+    This grain's email address is {{ (profiles[1] and profiles[1].email[0].email) or profiles[0].email[0].email }}. If you want to continue using your current email, then you should setup forwarding (<a href="https://support.google.com/mail/answer/10957?hl=en">eg. for gmail</a>). Emails sent from this grain will appear to be from {{ profiles[0].email[0].email }} by default.
+
+</div>
+{% endblock %}
