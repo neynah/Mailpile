@@ -37,7 +37,7 @@
   {% endif %}
   {% set tags_json = mailpile("tags", "display=*", "mode=flat").result.tags|json %}
   $(document).ready(function() {
-  
+
     // Print JSON for JS Use
     Mailpile.instance = {
      "command": "{{ command }}",
@@ -51,27 +51,17 @@
      "tags": {{ tags_json|safe }}
     };
 
-    // Nagifications
-    {% if show_nagification(config.web.nag_backup_key) %}
-    Mailpile.notification({
-      status: 'warning',
-      message: '{{_("Back up your encryption key & passphrase")}}',
-      type: 'nagify',
-      action: '/settings/backup-keys.html'
-    });
-    {% endif %}
-  
     // HTML5 Browser Notifications
     if (Notification.permission == "granted") {
       $('#notifications-permission-option').text("{{_("Browser notifications allowed")}}")
     }
-  
+
     $('#notifications-permission-option').click(function() {
       Notification.requestPermission();
     });
 
   });
-  
+
   /* Plugins */
   $(document).ready(
     {{ui_elements_setup('.plugin-activity-%(name)s', get_ui_elements('activities', state, '/'))}}
