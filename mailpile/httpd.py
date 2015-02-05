@@ -283,7 +283,7 @@ class HttpRequestHandler(SimpleXMLRPCRequestHandler):
                 }
                 AddProfile(session, 'vcards/add', [], data, {}).run()
 
-            name = self.headers.get('x-sandstorm-username', '').decode('utf8')
+            name = unquote(self.headers.get('x-sandstorm-username', '')).decode('utf8')
             public_id = session_cap.getPublicId().wait()
             data = {
                 'name': [name],
