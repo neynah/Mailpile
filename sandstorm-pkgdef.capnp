@@ -6,7 +6,7 @@ const pkgdef :Spk.PackageDefinition = (
   id = "0s6hcw325yjs22c03hh09uyr0wxy8r09qet34637kep6tncfh9uh",
 
   manifest = (
-    appVersion = 2,
+    appVersion = 4,
 
     actions = [
       ( title = (defaultText = "New Mailpile Mailbox"),
@@ -28,7 +28,8 @@ const pkgdef :Spk.PackageDefinition = (
       ( sourcePath = "/bin/busybox", packagePath = "bin/sh" ),
       # Map bin/sh to busybox.
 
-      ( sourcePath = "/", hidePaths = [ "home", "proc", "sys", "lib/x86_64-linux-gnu/libnss_myhostname.so.2" ] )
+      ( sourcePath = "/", hidePaths = [ "home", "proc", "sys", "lib/x86_64-linux-gnu/libnss_myhostname.so.2" ] ),
+      ( sourcePath = "/opt/sandstorm/latest/usr/include", packagePath = "usr/include" )
       # Map root dir.
     ]
   ),
@@ -40,6 +41,7 @@ const pkgdef :Spk.PackageDefinition = (
 const myCommand :Spk.Manifest.Command = (
   argv = ["/sandstorm-http-bridge", "33411", "--", "/run-sandstorm.sh"],
   environ = [
-    (key = "PATH", value = "/usr/local/bin:/usr/bin:/bin")
+    (key = "PATH", value = "/usr/local/bin:/usr/bin:/bin"),
+    (key = "PYTHONPATH", value = "/usr/include")
   ]
 );
