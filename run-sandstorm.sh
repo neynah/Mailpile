@@ -19,12 +19,5 @@ if ! test -e mail; then
   cp -r /.gnupg /var
 fi
 
-bash -c 'while [ ! -e /tmp/sandstorm-api ]
-do
-  sleep 1
-done
-
-/sandstorm-smtp-bridge/bin/sandstorm-smtp-bridge' &
-
 /usr/bin/python /mp --rescan all
 /usr/bin/python /mp --www= --wait
