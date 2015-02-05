@@ -75,7 +75,7 @@
                 <span class="icon-circle-x"></span>
               </a>
               <div class="preview">
-                <span class="icon-mime" type="{{att.mimetype}}"></span> 
+                <span class="icon-mime" type="{{att.mimetype}}"></span>
                 {% set file_parts = att.filename.split(".") %}
                 {% set file_parts_length = file_parts|length %}
                 <span class="extension">{{ file_parts[file_parts_length - 1] }}</span>
@@ -135,7 +135,8 @@
           <li role="presentation"><a role="menuitem" tabindex="-1" class="pick-send-datetime" data-datetime="2592000" href="#">1 month</a></li>
         </ul>
         -->
-        {% set from = editing_addresses and editing_strings.from_aids and editing_addresses[editing_strings.from_aids.0] or '' %}
+        {% set from = profiles.profiles[0] %}
+        {% set from_address = profiles.emails | first %}
         <div class="dropup">
           <div class="compose-from-select dropdown-toggle" data-toggle="dropdown">
             <span id="compose-from-selected-{{mid}}" class="compose-from-selected">
@@ -145,17 +146,14 @@
               <span class="avatar"><img src="/static/img/avatar-default-white.png"></span>
               {% endif %}
               <span class="name">{{from.fn}}</span>
-              <span class="address">{{from.address}}</span>
+              <span class="address">{{from_address}}</span>
             </span>
             <span class="compose-from-caret">
               <span class="caret"></span>
             </span>
           </div>
           <ul class="dropdown-menu">
-          {% set emails = profiles.emails|sort %}
-          {% if from.address not in emails %}
-            {% set emails = [from.address] + emails %}
-          {% endif %}
+          {% set emails = profiles.emails %}
           {% for profile_email in emails %}
             {% set profile = (profile_email in profiles.emails)
                              and profiles.profiles[profiles.emails[profile_email]]
@@ -183,10 +181,10 @@
         </button>
         <button class="compose-action button-secondary" type="submit" name="send" value="{% if command == "view" %}reply{% else %}send{% endif %}" alt="{{_("Send")}}">
           <span class="icon-sent"></span> {{_("Send")}}
-        </button>        
+        </button>
       </div>
     </div>
-    <input id="compose-from-{{mid}}" type="hidden" name="from" value="{{from.fn}} &lt;{{from.address}}&gt;">
+    <input id="compose-from-{{mid}}" type="hidden" name="from" value="{{from.fn}} &lt;{{from_address}}&gt;">
     <input id="compose-mid-{{mid}}" type="hidden" name="mid" value="{{mid}}">
     <input id="compose-crypto-{{mid}}" type="hidden" name="encryption" value="{{editing_strings.encryption}}">
     <input id="compose-signature-{{mid}}" type="hidden" value="">
