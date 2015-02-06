@@ -3,6 +3,13 @@
 [![Build Status](https://img.shields.io/travis/mailpile/Mailpile/master.svg)](https://travis-ci.org/mailpile/Mailpile)
 
 
+## Sandstorm ##
+
+This is a Sandstorm port of Mailpile. To package it, install the
+dependencies like it describes in
+https://github.com/mailpile/Mailpile/wiki/Getting-started and you should
+be good to go. `spk dev` and `spk pack` should just work.
+
 ## Introduction ##
 
 Mailpile (<https://www.mailpile.is/>) is a modern, fast web-mail client
