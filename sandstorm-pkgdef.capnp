@@ -6,7 +6,7 @@ const pkgdef :Spk.PackageDefinition = (
   id = "0s6hcw325yjs22c03hh09uyr0wxy8r09qet34637kep6tncfh9uh",
 
   manifest = (
-    appVersion = 4,
+    appVersion = 5,
 
     actions = [
       ( title = (defaultText = "New Mailpile Mailbox"),
@@ -35,7 +35,7 @@ const pkgdef :Spk.PackageDefinition = (
   ),
 
   fileList = "sandstorm-files.list",
-  alwaysInclude = [ "mailpile", "plugins", "static" ]
+  alwaysInclude = [ "mailpile" ]
 );
 
 const myCommand :Spk.Manifest.Command = (
